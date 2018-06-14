@@ -1,0 +1,97 @@
+---
+title: 'ACPD: Data Sources'
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    toc: yes
+---
+
+```{r setup}
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+# Housekeeping
+```{r}
+pacman::p_load(sdalr, DBI, httr, readr, stringr, dplyr, data.table, dtplyr)
+arlington_api_key = '140c712ce0aaf752160366975a7fa1cca8c81445'
+```
+
+# Crime Incident Reports
+
+- Source: [Police Incident Log](https://bit.ly/21nPzoE) "Arlington County Data API was used for this purpose, but it is not endorsed or certified by Arlington County."
+
+- Temporal coverage: 2015-01-01 - Present (last updated 2018-06-14)
+
+- Location: dbname = *jbsc* / name = *crime*
+
+```{r}
+# crime_incidence = function(arlington_api_key) {
+#   output = str_c('https://api.data.arlingtonva.us/api/v2/',
+#                         'datastreams/POLIC-INCID-LOG-19589/data.csv/?auth_key=',
+#                         arlington_api_key) %>%
+#     GET() %>%
+#     content(as = 'text', encoding = 'UTF-8') %>%
+#     read_csv() %>%
+#     mutate(firstReportDtm = as.POSIXct(x = firstReportDtm, tz = 'EDT'),
+#            lastReportDtm = as.POSIXct(x = lastReportDtm, tz = 'EDT')) %>%
+#     data.table() %>%
+#     setnames(old = 'reportNbr', new = 'id') %>%
+#     setnames(old = 'offenseDsc', new = 'description') %>%
+#     setnames(old = 'locationName', new = 'location') %>%
+#     setnames(old = 'latitudeCrd', new = 'latitude') %>%
+#     setnames(old = 'longitudeCrd', new = 'longitude') %>%
+#     setnames(old = 'firstReportDtm', new = 'start') %>%
+#     setnames(old = 'lastReportDtm', new = 'end')
+#   conn = con_db(dbname = 'jbsc',
+#                 pass = get_my_password())
+#   dbWriteTable(con = conn,
+#                name = 'crime',
+#                value = output,
+#                row.names = FALSE,
+#                overwrite = TRUE)
+#   on.exit(dbDisconnect(conn = conn))
+#   }
+# crime_incidence(arlington_api_key = arlington_api_key)
+crime_incidence = function() {
+  conn = con_db(dbname = 'jbsc',
+                pass = get_my_password())
+  output = dbReadTable(con = conn,
+                       name = 'crime')
+  on.exit(dbDisconnect(conn = conn))
+  return(value = output)
+}
+crime_incidence = crime_incidence()
+names(x = crime_incidence)
+head(x = crime_incidence)
+```
+
+# ABC Violations
+
+- Source: ABC Virginia [Hearing and Appeals: Final Decisions](https://www.abc.virginia.gov/enforcement/hearings-and-appeals/final-decisions/)
+
+- [Glossary of Hearings and Appeals Terms](https://www.abc.virginia.gov/enforcement/hearings-and-appeals/key-terms/)
+
+- Manually updated
+
+- Temporal coverage (2014-07-01 - 2017-06-31)
+
+- Location: dbname = *jbsc* / name = *abc*
+
+```{r}
+abc = function() {
+  conn = con_db(dbname = 'jbsc',
+                pass = get_my_password())
+  output = dbReadTable(con = conn,
+                       name = 'abc_violations_2014_07_2017_06') %>%
+    data.table()
+  on.exit(dbDisconnect(conn = conn))
+  return(value = output)
+}
+abc = abc()
+names(x = abc)
+head(x = abc)
+```
