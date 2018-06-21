@@ -21,22 +21,22 @@ some_data = function() {
   on.exit(dbDisconnect(conn = conn))
   return(value = output)
 }
-data <- some_data()
+police_dta <- some_data()
 
 
-police_dta <- read.csv("~/acpd/data/TEST_acpd_open_data.csv")
+#police_dta <- read.csv("~/acpd/data/TEST_acpd_open_data.csv")
 
-filter_vars <- c('offenseDsc', 'latitudeCrd', 'longitudeCrd', 'firstReportDtm')
-police_dta_filtered <- police_dta[filter_vars]
+# filter_vars <- c('offenseDsc', 'latitudeCrd', 'longitudeCrd', 'firstReportDtm')
+# police_dta_filtered <- police_dta[filter_vars]
 
-police_dta_filtered$firstReportDtm <- gsub("T", " ", police_dta_filtered$firstReportDtm)
+# police_dta_filtered$firstReportDtm <- gsub("T", " ", police_dta_filtered$firstReportDtm)
 
-peak_times <- police_dta_filtered[1, ]
+peak_times <- police_dta[1, ]
 pos <- 1;
 
 peak_drinking_times <- function(time, row_num)
 {
-  if((wday(time, label = TRUE) %>% "Thur") && (hour(time) %in% c('21', '22', '23', '24'))){
+  if((wday(time, label = TRUE) %>% "Thr") && (hour(time) %in% c('21', '22', '23', '24'))){
     pos = pos + 1
     return(police_dta_filtered[row_num, ])
   } else if((wday(time, label = TRUE) %in% "Fri") && (hour(time) %in% c('0', '1', '2', '3', '21', '22', '23', '24'))){
@@ -54,9 +54,9 @@ peak_drinking_times <- function(time, row_num)
   } 
 }
 
-for (i in 1:nrow(police_dta_filtered))
+for (i in 1:1)
 {
-  peak_times <- rbind(peak_times, peak_drinking_times(police_dta_filtered$firstReportDtm[i], i), make.row.names = FALSE)
+  peak_times <- rbind(peak_times, peak_drinking_times(police_dta$start[i], i), make.row.names = FALSE)
 }
 
 #peak_times <- filter(peak_times, firstReportDtm = c(''))
