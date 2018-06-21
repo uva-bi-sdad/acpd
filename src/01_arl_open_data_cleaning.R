@@ -11,6 +11,19 @@ library(dplyr)
 # 
 # police_dta <- paste('https://api.data.arlingtonva.us/api/v2/datastreams/POLIC-INCID-LOG-19589/data.json/?auth_key=', api_key, '&limit=50', sep="")
 
+pacman::p_load(docstring, sdalr, DBI, dplyr, data.table, dtplyr)
+some_data = function() {
+  conn = con_db(dbname = 'jbsc',
+                pass = get_my_password())
+  output = dbReadTable(conn = conn,
+                       name = 'crime') %>%
+    data.table()
+  on.exit(dbDisconnect(conn = conn))
+  return(value = output)
+}
+data <- some_data()
+
+
 police_dta <- read.csv("~/acpd/data/TEST_acpd_open_data.csv")
 
 filter_vars <- c('offenseDsc', 'latitudeCrd', 'longitudeCrd', 'firstReportDtm')
