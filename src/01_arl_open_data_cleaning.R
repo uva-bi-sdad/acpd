@@ -61,4 +61,4 @@ for (i in 1:3742)
   peak_times <- rbind(peak_times, peak_drinking_times(nearby_incidents$start[i], i), make.row.names = FALSE)
 }
 
-write.csv(peak_times)
+write.csv(peak_times,"~/acpd/data/filteredby_location_peaktime.csv")
