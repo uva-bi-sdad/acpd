@@ -36,7 +36,7 @@ pos <- 1;
 
 peak_drinking_times <- function(time, row_num)
 {
-  if((wday(time, label = TRUE) %>% "Thr") && (hour(time) %in% c('21', '22', '23', '24'))){
+  if((wday(time, label = TRUE) %in% "Thr") && (hour(time) %in% c('21', '22', '23', '24'))){
     pos = pos + 1
     return(police_dta_filtered[row_num, ])
   } else if((wday(time, label = TRUE) %in% "Fri") && (hour(time) %in% c('0', '1', '2', '3', '21', '22', '23', '24'))){
@@ -57,6 +57,7 @@ peak_drinking_times <- function(time, row_num)
 for (i in 1:1)
 {
   peak_times <- rbind(peak_times, peak_drinking_times(police_dta$start[i], i), make.row.names = FALSE)
+  
 }
 
 #peak_times <- filter(peak_times, firstReportDtm = c(''))
