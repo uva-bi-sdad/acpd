@@ -12,14 +12,12 @@ output:
 
 ```{r setup}
 knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
-# setwd(dir = rprojroot::find_rstudio_root_file())
 ```
 
 # Housekeeping
 ```{r}
-pacman::p_load(sdalr, DBI, httr, jsonlite, readr, stringr, dplyr, data.table, dtplyr, purrr)
+pacman::p_load(sdalr, DBI, httr, readr, stringr, dplyr, data.table, dtplyr)
 arlington_api_key = '140c712ce0aaf752160366975a7fa1cca8c81445'
-google_api_key = 'AIzaSyAJwMuwL73uIxLhhhYoPkDymDFcQJVCtPA'
 ```
 
 # Crime Incident Reports
@@ -85,10 +83,10 @@ head(x = crime_incidence)
 
 ```{r}
 abc = function() {
-  conn = con_db(dbname = 'jbsc',
+  conn = con_db(dbname = 'oss',
                 pass = get_my_password())
   output = dbReadTable(con = conn,
-                       name = 'abc_violations_2014_07_2017_06') %>%
+                       name = 'geocoded') %>%
     data.table()
   on.exit(dbDisconnect(conn = conn))
   return(value = output)
@@ -97,51 +95,3 @@ abc = abc()
 names(x = abc)
 head(x = abc)
 ```
-
-```{r geocoding}
-geocode = function(address) {
-  response = str_c('https://maps.googleapis.com/maps/api/geocode/json',
-                    '?address=',
-                   address,
-                   '&key=',
-                   google_api_key) %>%
-    str_replace_all(pattern = '\\s',
-                  replacement = '+') %>%
-    GET()
-  if (status_code(x = response) == 200L) {
-    lon_lat = response %>%
-      content(as = 'text',
-              encoding = 'UTF-8') %>%
-      fromJSON() %>%
-      getElement(name = 'results') %>%
-      getElement(name = 'geometry') %>%
-      getElement(name = 'location')
-    output = data.table(address = address,
-                        longitude = lon_lat$lng,
-                        latitude = lon_lat$lat)
-  } else {
-    output = data.table(address = address,
-                        longitude = NA,
-                        latitude = NA)
-  }
-  return(value = output)
-}
-# arlington_address_geocoded = map_df(.x = abc %>%
-#                                       filter(city %in% 'ARLINGTON') %>%
-#                                       pull(address) %>%
-#                                       unique() %>%
-#                                       str_c(' Arlington, VA'),
-#                                     .f = geocode)
-upload_geocoded = function() {
-  conn = con_db(dbname = 'jbsc',
-                pass = get_my_password())
-  dbWriteTable(con = conn,
-               name = 'geocoded',
-               value = arlington_address_geocoded,
-               row.names = FALSE,
-               overwrite = TRUE)
-  on.exit(dbDisconnect(conn = conn))
-  }
-# upload_geocoded()
-```
-
