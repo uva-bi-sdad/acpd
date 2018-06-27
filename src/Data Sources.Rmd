@@ -126,12 +126,12 @@ geocode = function(address) {
   }
   return(value = output)
 }
-arlington_address_geocoded = map_df(.x = abc %>%
-                                      filter(city %in% 'ARLINGTON') %>%
-                                      pull(address) %>%
-                                      unique() %>%
-                                      str_c(' Arlington, VA'),
-                                    .f = geocode)
+# arlington_address_geocoded = map_df(.x = abc %>%
+#                                       filter(city %in% 'ARLINGTON') %>%
+#                                       pull(address) %>%
+#                                       unique() %>%
+#                                       str_c(' Arlington, VA'),
+#                                     .f = geocode)
 upload_geocoded = function() {
   conn = con_db(dbname = 'jbsc',
                 pass = get_my_password())
@@ -142,7 +142,6 @@ upload_geocoded = function() {
                overwrite = TRUE)
   on.exit(dbDisconnect(conn = conn))
   }
-upload_geocoded()
-#   }
+# upload_geocoded()
 ```
 
