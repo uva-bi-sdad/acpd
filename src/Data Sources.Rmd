@@ -1,5 +1,5 @@
 ---
-title: 'ACPD: Data Sources'
+title: 'Alcohol-Related Crime Reduction Strategies for Restaurants and Nightlife in Arlington (ACPD)'
 output:
   html_document:
     code_folding: hide
@@ -15,11 +15,152 @@ knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 # setwd(dir = rprojroot::find_rstudio_root_file())
 ```
 
+# The Arlington Restaurants Initiative
+
+  > The Police Department’s Arlington Restaurant Initiative was designed to address public safety issues, foster relationships and cooperation with businesses, and ultimately raise the best standards of restaurants that serve alcohol. The goal of the initiative is to develop strategies that will maintain Clarendon as a safe destination for nightlife and entertainment ([2017 Annual Report the Arlington County Police Department](https://arlingtonva.s3.amazonaws.com/wp-content/uploads/sites/11/2018/05/ACPD2017-Annual-Report.pdf)).
+
+- In the news
+
+  - [Best Bar None Goes USA](http://bbnuk.com/best-bar-none-goes-usa/)
+
+  - [Sirens Wail in Clarendon as Targeted Police Efforts Focus on Bars and Restaurants](https://www.washingtoncitypaper.com/food/young-hungry/article/21001239/sirens-wail-in-clarendon-as-targeted-police-efforts-focus-on-bars-and-restaurants) (2018-04-18)
+
+  - [Arlington County Police Department Trains TIPS to Reduce Alcohol-Related Harm](https://www.prnewswire.com/news-releases/arlington-county-police-department-trains-tips-to-reduce-alcohol-related-harm-300495817.html) (2017-07-28)
+
+- ABC licensed 
+
 # Housekeeping
-```{r}
-pacman::p_load(sdalr, DBI, httr, jsonlite, readr, stringr, dplyr, data.table, dtplyr, purrr)
+```{r housekeeping}
+pacman::p_load(sdalr, DBI, httr, jsonlite, stringdist, sf, geosphere, tigris, lubridate, ggplot2, stringr, dplyr, data.table, dtplyr, purrr)
 arlington_api_key = '140c712ce0aaf752160366975a7fa1cca8c81445'
 google_api_key = 'AIzaSyAJwMuwL73uIxLhhhYoPkDymDFcQJVCtPA'
+```
+
+# Helpers
+```{r helpers}
+geocode = function(address) {
+  response = str_c('https://maps.googleapis.com/maps/api/geocode/json',
+                    '?address=',
+                   address,
+                   '&key=',
+                   google_api_key) %>%
+    str_replace_all(pattern = '\\s',
+                  replacement = '+') %>%
+    GET()
+  if (status_code(x = response) == 200L) {
+    lon_lat = response %>%
+      content(as = 'text',
+              encoding = 'UTF-8') %>%
+      fromJSON() %>%
+      getElement(name = 'results')
+    best_match = with(lon_lat,
+                      which.min(x = stringdist(a = address,
+                                               b = formatted_address)))
+    lon_lat = lon_lat %>%
+      getElement(name = 'geometry') %>%
+      getElement(name = 'location') %>%
+      filter(1:nrow(x = .) %in% best_match)
+    output = data.table(address = address,
+                        longitude = lon_lat$lng,
+                        latitude = lon_lat$lat)
+  } else {
+    output = data.table(address = address,
+                        longitude = NA,
+                        latitude = NA)
+  }
+  return(value = output)
+}
+fixing_dates = function(dt) {
+  m_d_y = str_split(string = dt,
+                    pattern = '/') %>%
+    unlist()
+  output = str_c('20', m_d_y[3L], '-',
+                 str_pad(string = m_d_y[1L],
+                         width = 2L,
+                         pad = '0',
+                         side = 'left'),
+                 '-',
+                 str_pad(string = m_d_y[2L],
+                         width = 2L,
+                         pad = '0',
+                         side = 'left'))
+  return(value = output)
+  }
+```
+
+# Alcohol Board Control (ABC) Virginia
+
+- We identified all ABC-licensed restaurants in Arlington
+
+```{r restaurants}
+restaurants = function() {
+  # Virginia Alcoholic Beverage Control Authority (VABC)
+  # https://www.abc.virginia.gov/licenseesearch/retail_search_view.do
+  # Select the data for all
+  # - Establishment Type: Restaurant
+  # - City/County: Arlington County
+  conn = con_db(dbname = 'acpd',
+                pass = get_my_password())
+  output = dbReadTable(con = conn,
+                       name = 'vabc_arlington_restaurants')
+  on.exit(expr = dbDisconnect(conn = conn))
+  return(value = output)
+}
+restaurants = restaurants()
+restaurants %>%
+  select(trade_name, address) %>%
+  unique() %>%
+  head()
+```
+
+- Clarendon Metro Station as the centroid and a buffer of 0.25 miles.
+```{r clarendon_metro}
+clarendon_metro_station = c(-77.09499, 38.88718)
+```
+
+- We also identified the restaurants part of the ARI (sponsor-provided)
+```{r air_restaurants}
+ari_restaurants = c('Heavy Seas Alehouse',
+                    'Irelands Four Courts',
+                    'Samuel Becketts Irish Gastro Pub',
+                    'Crystal City Sports Pub',
+                    'Freddies',
+                    'William Jeffreys Tavern',
+                    'Whitlows On Wilson',
+                    'Wilson Hardware',
+                    'Bar Bao',
+                    'Pamplona')
+selected_restaurants = restaurants %>%
+  select(trade_name, longitude, latitude) %>%
+  filter(trade_name %in% ari_restaurants) %>%
+  unique() %>%
+  mutate(dist_from_clarendon = round(distm(x = select(.data = .,
+                                                      longitude,
+                                                      latitude),
+                                           y = clarendon_metro_station) *
+                                       6.21371e-4,
+                                     digits = 2L) %>%
+           as.numeric())
+selected_restaurants %>%
+  filter(dist_from_clarendon <= 2.5e-1) %>%
+  pull(trade_name)
+```
+
+- How many restaurants are in the area of interest?
+```{r clarendon_breakdown}
+clarendon_restaurants = restaurants %>%
+  select(trade_name, longitude, latitude) %>%
+  unique()
+clarendon_restaurants = clarendon_restaurants %>%
+  mutate(dist_from_clarendon = round(distm(x = select(.data = clarendon_restaurants,
+                                                      longitude,
+                                                      latitude),
+                                           y = clarendon_metro_station,
+                                           fun = distVincentyEllipsoid) *
+                                       6.21371e-4,
+                                     digits = 2L) %>%
+           as.numeric())
+table(clarendon_restaurants$dist_from_clarendon <= 2.5e-1)
 ```
 
 # Crime Incident Reports
@@ -28,9 +169,9 @@ google_api_key = 'AIzaSyAJwMuwL73uIxLhhhYoPkDymDFcQJVCtPA'
 
 - Temporal coverage: 2015-01-01 - Present (last updated 2018-06-14)
 
-- Location: dbname = *jbsc* / name = *crime*
+- Location: dbname = *acpd* / name = *crime*
 
-```{r}
+```{r crime_incidence}
 # crime_incidence = function(arlington_api_key) {
 #   output = str_c('https://api.data.arlingtonva.us/api/v2/',
 #                         'datastreams/POLIC-INCID-LOG-19589/data.csv/?auth_key=',
@@ -48,7 +189,7 @@ google_api_key = 'AIzaSyAJwMuwL73uIxLhhhYoPkDymDFcQJVCtPA'
 #     setnames(old = 'longitudeCrd', new = 'longitude') %>%
 #     setnames(old = 'firstReportDtm', new = 'start') %>%
 #     setnames(old = 'lastReportDtm', new = 'end')
-#   conn = con_db(dbname = 'jbsc',
+#   conn = con_db(dbname = 'acpd',
 #                 pass = get_my_password())
 #   dbWriteTable(con = conn,
 #                name = 'crime',
@@ -59,7 +200,7 @@ google_api_key = 'AIzaSyAJwMuwL73uIxLhhhYoPkDymDFcQJVCtPA'
 #   }
 # crime_incidence(arlington_api_key = arlington_api_key)
 crime_incidence = function() {
-  conn = con_db(dbname = 'jbsc',
+  conn = con_db(dbname = 'acpd',
                 pass = get_my_password())
   output = dbReadTable(con = conn,
                        name = 'crime')
@@ -67,8 +208,62 @@ crime_incidence = function() {
   return(value = output)
 }
 crime_incidence = crime_incidence()
-names(x = crime_incidence)
 head(x = crime_incidence)
+```
+
+- Alcohol-Related Crimes
+
+```{r crime_types}
+crime_type = c('DRUNK', 'DUI', 'ASSAULT', 'SEXUAL', 'DISORDERLY')
+crime_regex = str_c('(', str_c(crime_type, collapse = '|'), ')')
+print(crime_type)
+```
+
+```{r alcohol_crimes}
+alcohol_crimes = crime_incidence %>%
+  filter(str_detect(string = description,
+                    pattern = crime_regex)) %>%
+  mutate(id = 'Incident') %>%
+  select(id, longitude, latitude) %>%
+  mutate(dist_from_clarendon = round(distm(x = select(.data = .,
+                                                      longitude,
+                                                      latitude),
+                                           y = clarendon_metro_station,
+                                           fun = distVincentyEllipsoid) *
+                                       6.21371e-4,
+                                     digits = 2L) %>%
+           as.numeric()) %>%
+  filter(dist_from_clarendon <= 2.5e-1) %>%
+  select(id, longitude, latitude)
+```
+
+```{r map}
+data_map = clarendon_restaurants %>%
+  filter(dist_from_clarendon <= 2.5e-1) %>%
+  mutate(id = ifelse(test = trade_name %in% (selected_restaurants %>%
+                                               filter(dist_from_clarendon <= 2.5e-1)
+                                             %>%
+                                               pull(trade_name)),
+                     yes = 'ARI',
+                     no = 'Restaurant')) %>%
+  select(id, longitude, latitude) %>%
+  rbind(alcohol_crimes)
+va = county_subdivisions(state = 51L, # 'VA'
+                         county = 013L, # 'Arlington County'
+                         year = 2017L,
+                         class = 'sf') %>%
+  getElement(name = 'geometry')
+upload_data_for_map = function() {
+  conn = con_db(dbname = 'acpd',
+                pass = get_my_password())
+  dbWriteTable(con = conn,
+               name = 'for_map',
+               value = data_map,
+               row.names = FALSE,
+               overwrite = TRUE)
+  on.exit(dbDisconnect(conn = conn))
+}
+upload_data_for_map()
 ```
 
 # ABC Violations
@@ -81,11 +276,11 @@ head(x = crime_incidence)
 
 - Temporal coverage (2014-07-01 - 2017-06-31)
 
-- Location: dbname = *jbsc* / name = *abc*
+- Location: dbname = *acpd* / name = *abc*
 
-```{r}
+```{r abc}
 abc = function() {
-  conn = con_db(dbname = 'jbsc',
+  conn = con_db(dbname = 'acpd',
                 pass = get_my_password())
   output = dbReadTable(con = conn,
                        name = 'abc_violations_2014_07_2017_06') %>%
@@ -94,38 +289,12 @@ abc = function() {
   return(value = output)
 }
 abc = abc()
-names(x = abc)
 head(x = abc)
 ```
 
-```{r geocoding}
-geocode = function(address) {
-  response = str_c('https://maps.googleapis.com/maps/api/geocode/json',
-                    '?address=',
-                   address,
-                   '&key=',
-                   google_api_key) %>%
-    str_replace_all(pattern = '\\s',
-                  replacement = '+') %>%
-    GET()
-  if (status_code(x = response) == 200L) {
-    lon_lat = response %>%
-      content(as = 'text',
-              encoding = 'UTF-8') %>%
-      fromJSON() %>%
-      getElement(name = 'results') %>%
-      getElement(name = 'geometry') %>%
-      getElement(name = 'location')
-    output = data.table(address = address,
-                        longitude = lon_lat$lng,
-                        latitude = lon_lat$lat)
-  } else {
-    output = data.table(address = address,
-                        longitude = NA,
-                        latitude = NA)
-  }
-  return(value = output)
-}
+Participating restaurants
+
+```{r cleaning_abc}
 # arlington_address_geocoded = map_df(.x = abc %>%
 #                                       filter(city %in% 'ARLINGTON') %>%
 #                                       pull(address) %>%
@@ -133,7 +302,7 @@ geocode = function(address) {
 #                                       str_c(' Arlington, VA'),
 #                                     .f = geocode)
 upload_geocoded = function() {
-  conn = con_db(dbname = 'jbsc',
+  conn = con_db(dbname = 'acpd',
                 pass = get_my_password())
   dbWriteTable(con = conn,
                name = 'geocoded',
@@ -143,5 +312,62 @@ upload_geocoded = function() {
   on.exit(dbDisconnect(conn = conn))
   }
 # upload_geocoded()
+read_geocoded = function() {
+  conn = con_db(dbname = 'acpd',
+                pass = get_my_password())
+  output = dbReadTable(con = conn,
+                       name = 'geocoded') %>%
+    data.table()
+  on.exit(dbDisconnect(conn = conn))
+  return(value = output)
+}
+arlington_address_geocoded = read_geocoded()
+upload_abc_clean = function() {
+  output = merge(x = abc %>%
+                   filter(city %in% 'ARLINGTON'),
+                 y = arlington_address_geocoded %>%
+                   mutate(address = str_extract(string = address,
+                                                pattern = '.*(?= Arlington, VA)'))) %>%
+    mutate(date_available_to_ha = map_chr(.x = date_available_to_ha,
+                                          .f = fixing_dates) %>%
+             as.Date(),
+           date_violation = map_chr(.x = date_violation,
+                                    .f = fixing_dates) %>%
+             as.Date(),
+           date_heard = map_chr(.x = date_heard,
+                                .f = fixing_dates) %>%
+             as.Date(),
+           date_decision =  map_chr(.x = date_decision,
+                                    .f = fixing_dates) %>%
+             as.Date(),
+           date_disposition = map_chr(.x = date_disposition,
+                                      .f = fixing_dates) %>%
+             as.Date(),
+           civil_penalty_in_usd = civil_penalty_in_usd %>%
+             str_remove_all(pattern = '(\\$|,)') %>%
+             as.numeric(),
+           civil_penalty_in_usd = 
+             ifelse(test = is.na(x = civil_penalty_in_usd),
+                    yes = 0,
+                    no = civil_penalty_in_usd))
+  conn = con_db(dbname = 'acpd',
+                pass = get_my_password())
+  dbWriteTable(con = conn,
+               name = 'abc_cleaned',
+               value = output,
+               row.names = FALSE,
+               overwrite = TRUE)
+  on.exit(dbDisconnect(conn = conn))
+  }
+upload_abc_clean()
+read_abc_clean = function() {
+  conn = con_db(dbname = 'acpd',
+                pass = get_my_password())
+  output = dbReadTable(con = conn,
+                       name = 'abc_cleaned')
+  on.exit(dbDisconnect(conn = conn))
+  return(value = output)
+}
+abc_clean = read_abc_clean()
+head(x = abc_clean)
 ```
-
