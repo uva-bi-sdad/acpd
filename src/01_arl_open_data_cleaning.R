@@ -38,27 +38,28 @@ pos <- 1;
 
 peak_drinking_times <- function(time, row_num)
 {
-  if((wday(time, label = TRUE) %in% "Thr") && (hour(time) %in% c('21', '22', '23', '24'))){
+  if((wday(time, label = TRUE) %>% "Thur") && (hour(time) %in% c('21', '22', '23', '24'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } else if((wday(time, label = TRUE) %in% "Fri") && (hour(time) %in% c('0', '1', '2', '3', '21', '22', '23', '24'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } else if((wday(time, label = TRUE) %in% "Sat") && (hour(time) %in% c('0', '1', '2', '3', '21', '22', '23', '24'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } else if ((wday(time, label = TRUE) %in% "Sun") && (hour(time) %in% c('0', '1', '2', '3', '21', '22', '23', '24'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } else if ((wday(time, label = TRUE) %in% "Mon") && (hour(time) %in% c('0', '1', '2', '3'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } 
 }
 
-for (i in 1:3742)
+for (i in 1:nrow(police_dta_filtered))
 {
-  peak_times <- rbind(peak_times, peak_drinking_times(nearby_incidents$start[i], i), make.row.names = FALSE)
+  peak_times <- rbind(peak_times, peak_drinking_times(police_dta_filtered$firstReportDtm[i], i), make.row.names = FALSE)
 }
 
-write.csv(peak_times,"~/acpd/data/filteredby_location_peaktime.csv")
+#peak_times <- filter(peak_times, firstReportDtm = c(''))
+
