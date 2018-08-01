@@ -25,7 +25,7 @@ pacman::p_load(docstring, purrr, stringi, stringr, lubridate, geosphere, dplyr, 
 
 
 ```{r}
-crime_type <-  c('DRUNK', 'DUI', 'ASSAULT', 'POSSESSION', 'SEXUAL', 'DISORDERLY' )
+crime_type <-  c('DRUNK', 'DUI', 'ASSAULT', 'POSSESSION', 'SEXUAL', 'DISORDERLY')
 ```
 ```{r}
 report <- (crime_incidence)
@@ -77,29 +77,3 @@ Nightlife is defined as:
   #' 
   #' - Day after 5 de mayo (05-06) between 00:00 - 03:00
   #' 
-
-
-```{r}
-Friday <- function(dt) {
-  if (wday(x = dt) == )
-}
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

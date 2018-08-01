@@ -1,24 +1,39 @@
+pacman::p_load(httr, readr, stringr, dplyr, data.table, dtplyr)
+pacman::p_load(docstring, purrr, stringi, stringr, lubridate, geosphere, dplyr, data.table, dtplyr)
+pacman::p_load(docstring, sdalr, DBI, dplyr, data.table, dtplyr)
 library(lubridate)
 library(dplyr)
-# Need to find a way to download the data using the url to be able to get the most recent data each time you run the script
-# Worst-case scenario is to have to download and then upload the data to R/ Lightfoot
+ 
+some_data = function() {
+  conn = con_db(dbname = 'jbsc',
+                pass = get_my_password())
+  output = dbReadTable(conn = conn,
+                       name = 'crime') %>%
+    data.table()
+  on.exit(dbDisconnect(conn = conn))
+  return(value = output)
+}
+police_dta <- some_data()
 
-# Arlington County Open Data - Police Incident Log
-#police_dta <- read.csv(url('http://bit.ly/21nPzoE')) <- for this to work the url needs to lead directly to a csv file
 
-# Let's try to AC OD API
-# api_key <- "23cb052a88d6cdc8b1b1831a9909869d0c9b5093"
-# 
-# police_dta <- paste('https://api.data.arlingtonva.us/api/v2/datastreams/POLIC-INCID-LOG-19589/data.json/?auth_key=', api_key, '&limit=50', sep="")
+compute_distance_from_hq_in_kim <- function(lon, lat) {
+  output = distm(x = c(lon, lat),
+                 y = c(-77.0950, 38.8872),
+                 fun = distVincentyEllipsoid) / 1000
+  return(value = output)
+}
 
-police_dta <- read.csv("~/acpd/data/TEST_acpd_open_data.csv")
+police_dta_nearby <- police_dta %>%
+  mutate(nearby = map2_dbl(.x = longitude,
+                           .y = latitude,
+                           .f = compute_distance_from_hq_in_kim) <= 0.804672)
 
-filter_vars <- c('offenseDsc', 'latitudeCrd', 'longitudeCrd', 'firstReportDtm')
-police_dta_filtered <- police_dta[filter_vars]
+# need to keep the rows that column 'nearby' is TRUE
+nearby_incidents <- filter(police_dta_nearby, nearby %in% TRUE)
 
-police_dta_filtered$firstReportDtm <- gsub("T", " ", police_dta_filtered$firstReportDtm)
 
-peak_times <- police_dta_filtered[1, ]
+
+peak_times <- nearby_incidents[1, ]
 pos <- 1;
 
 peak_drinking_times <- function(time, row_num)
