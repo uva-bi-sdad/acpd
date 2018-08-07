@@ -1,11 +1,15 @@
+#### Housekeeping ####
+library(dplyr)
+library(data.table)
+library(dtplyr)
+library(sdalr)
+library(DBI)
+library(lubridate)
+
+acpd = fread("~/git/acpd/data/initial_filtering.csv")
 acpd <- read.csv("~/git/acpd.git/crime data.csv")
-pacman::p_load(docstring, sdalr, DBI, dplyr, data.table, dtplyr)
-pacman::p_load(httr, readr, stringr, dplyr, data.table, dtplyr)
-library(ggplot2)
-pacman::p_load(docstring, purrr, stringi, stringr, lubridate, geosphere, dplyr, data.table, dtplyr)
+
 get_crime = function() {
-  # Getting some_data from the database.
-  
   conn = con_db(dbname = 'acpd',
                 pass = get_my_password())
   output = dbReadTable(conn = conn,
@@ -13,8 +17,7 @@ get_crime = function() {
     data.table()
   on.exit(dbDisconnect(conn = conn))
   return(value = output)
-}
-
+  }
 acpd_data <- get_crime()
 
 
@@ -24,7 +27,6 @@ acpd_data <- get_crime()
 crime_type %>%
   filter(description %in% relevant_crime_types) %>%
   mutate(year = year(end)) %>%
-  # select(description, year) %>%
   group_by(description, year) %>%
   do(function(df) {
     output = data.table(df$description[1],
@@ -39,8 +41,9 @@ table(crime_type %>%
 
 
 # filtering the nearby incidents by crimes we thought were alcohol related
-nearby_incidents <- filter(crime_type, nearby %in% TRUE)
-nearby_incidents$yearOfCrime = year(nearby_incidents$start)
+nearby_incidents = nearby_incidents %>%
+    filter(nearby %in% TRUE) %>%
+    mutate(yearOfCrime = year(x = start))
 
 relevant_crime_types <- c("PUBLIC DRUNKENNESS (DRUNK IN PUBLIC)",
                           "DUI",
@@ -95,15 +98,16 @@ relevant_crime_types <- c("PUBLIC DRUNKENNESS (DRUNK IN PUBLIC)",
                           "LIQUOR MISREPRESENTING AGE-MINOR")
 
 
-nearby_incidents = filter(nearby_incidents, yearOfCrime %in% 2015:2017) %>%
+nearby_incidents = nearby_incidents %>%
+  filter(yearOfCrime %in% 2015:2017) %>%
   filter(description %in% relevant_crime_types)
 
-View(table(nearby_incidents$description, nearby_incidents$yearOfCrime))
 
 
-filtered <- acpd %>% filter(description %in% relevant_crime_types)
+filtered = acpd %>% filter(description %in% relevant_crime_types)
 
 saveRDS(object = filtered, file = './data/acpd/working/filtered_by_location_type_time.RDS')
+fwrite(filtered, "~/git/acpd/data/filtered_by_location_type_time.csv")
 
 
 
