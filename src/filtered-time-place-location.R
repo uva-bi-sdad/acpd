@@ -106,8 +106,6 @@ nearby_incidents = nearby_incidents %>%
 
 filtered = acpd %>% filter(description %in% relevant_crime_types)
 
+
 saveRDS(object = filtered, file = './data/acpd/working/filtered_by_location_type_time.RDS')
-fwrite(filtered, "~/git/acpd/data/filtered_by_location_type_time.csv")
-
-
-
+fwrite(filtered, "./data/working/filtered_by_location_type_time.csv")
