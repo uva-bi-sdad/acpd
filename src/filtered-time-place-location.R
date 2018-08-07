@@ -1,4 +1,4 @@
-acpd <- read.csv("~/git/acpd/data/initial_filtering.csv")
+acpd <- read.csv("~/git/acpd.git/crime data.csv")
 pacman::p_load(docstring, sdalr, DBI, dplyr, data.table, dtplyr)
 get_crime = function() {
   #' Getting some_data from the database.
@@ -166,7 +166,7 @@ View(table(nearby_incidents$description, nearby_incidents$yearOfCrime))
 
 filtered <- acpd %>% filter(description %in% relevant_crime_types)
 
-write.csv(filtered, "~/git/acpd/data/filtered_by_location_type_time.csv")
+saveRDS(object = filtered, file = './data/acpd/working/filtered_by_location_type_time.RDS')
 
 library(ggplot2)
 ##ggplot(data = mpg) + geom_point(mapping = aes(x = displ, y = hwy))
