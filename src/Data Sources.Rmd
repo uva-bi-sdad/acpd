@@ -12,7 +12,6 @@ output:
 
 ```{r setup}
 knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
-# setwd(dir = rprojroot::find_rstudio_root_file())
 ```
 
 # The Arlington Restaurants Initiative
@@ -30,10 +29,14 @@ knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 - ABC licensed 
 
 # Housekeeping
+<<<<<<< HEAD
+```{r}
+pacman::p_load(sdalr, DBI, httr, readr, stringr, dplyr, data.table, dtplyr)
+=======
 ```{r housekeeping}
 pacman::p_load(sdalr, DBI, httr, jsonlite, stringdist, sf, geosphere, tigris, lubridate, ggplot2, stringr, dplyr, data.table, dtplyr, purrr)
+>>>>>>> 7ba5bb3494b51449452389d319399093ba770128
 arlington_api_key = '140c712ce0aaf752160366975a7fa1cca8c81445'
-google_api_key = 'AIzaSyAJwMuwL73uIxLhhhYoPkDymDFcQJVCtPA'
 ```
 
 # Helpers
@@ -280,10 +283,14 @@ upload_data_for_map()
 
 ```{r abc}
 abc = function() {
+<<<<<<< HEAD
+  conn = con_db(dbname = 'oss',
+=======
   conn = con_db(dbname = 'acpd',
+>>>>>>> 7ba5bb3494b51449452389d319399093ba770128
                 pass = get_my_password())
   output = dbReadTable(con = conn,
-                       name = 'abc_violations_2014_07_2017_06') %>%
+                       name = 'geocoded') %>%
     data.table()
   on.exit(dbDisconnect(conn = conn))
   return(value = output)
@@ -291,6 +298,8 @@ abc = function() {
 abc = abc()
 head(x = abc)
 ```
+<<<<<<< HEAD
+=======
 
 Participating restaurants
 
@@ -371,3 +380,4 @@ read_abc_clean = function() {
 abc_clean = read_abc_clean()
 head(x = abc_clean)
 ```
+>>>>>>> 7ba5bb3494b51449452389d319399093ba770128
