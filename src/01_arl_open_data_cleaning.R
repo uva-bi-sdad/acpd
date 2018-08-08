@@ -1,9 +1,17 @@
-pacman::p_load(httr, readr, stringr, dplyr, data.table, dtplyr)
-pacman::p_load(docstring, purrr, stringi, stringr, lubridate, geosphere, dplyr, data.table, dtplyr)
-pacman::p_load(docstring, sdalr, DBI, dplyr, data.table, dtplyr)
-library(lubridate)
+
+#### Housekeeping ####
+library(stringr)
 library(dplyr)
- 
+library(data.table)
+library(dtplyr)
+library(geosphere)
+library(sdalr)
+library(DBI)
+library(purrr)
+library(lubridate)
+
+#### getting data from dataset ####
+
 some_data = function() {
   conn = con_db(dbname = 'jbsc',
                 pass = get_my_password())
@@ -15,6 +23,7 @@ some_data = function() {
 }
 police_dta <- some_data()
 
+#### geofiltering with clarendon metro coordinates ####
 
 compute_distance_from_hq_in_kim <- function(lon, lat) {
   output = distm(x = c(lon, lat),
@@ -23,42 +32,44 @@ compute_distance_from_hq_in_kim <- function(lon, lat) {
   return(value = output)
 }
 
+#### police_dta in acpd file on server ####
+
 police_dta_nearby <- police_dta %>%
   mutate(nearby = map2_dbl(.x = longitude,
                            .y = latitude,
                            .f = compute_distance_from_hq_in_kim) <= 0.804672)
 
-# need to keep the rows that column 'nearby' is TRUE
 nearby_incidents <- filter(police_dta_nearby, nearby %in% TRUE)
 
-
+#### spatial filtering for peak drinking times // hour and day ####
 
 peak_times <- nearby_incidents[1, ]
 pos <- 1;
 
 peak_drinking_times <- function(time, row_num)
 {
-  if((wday(time, label = TRUE) %in% "Thr") && (hour(time) %in% c('21', '22', '23', '24'))){
+  if((wday(time, label = TRUE) %>% "Thur") && (hour(time) %in% c('21', '22', '23', '24'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } else if((wday(time, label = TRUE) %in% "Fri") && (hour(time) %in% c('0', '1', '2', '3', '21', '22', '23', '24'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } else if((wday(time, label = TRUE) %in% "Sat") && (hour(time) %in% c('0', '1', '2', '3', '21', '22', '23', '24'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } else if ((wday(time, label = TRUE) %in% "Sun") && (hour(time) %in% c('0', '1', '2', '3', '21', '22', '23', '24'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } else if ((wday(time, label = TRUE) %in% "Mon") && (hour(time) %in% c('0', '1', '2', '3'))){
     pos = pos + 1
-    return(nearby_incidents[row_num, ])
+    return(police_dta_filtered[row_num, ])
   } 
 }
 
-for (i in 1:3742)
+for (i in 1:nrow(police_dta_filtered))
 {
-  peak_times <- rbind(peak_times, peak_drinking_times(nearby_incidents$start[i], i), make.row.names = FALSE)
+  peak_times <- rbind(peak_times, peak_drinking_times(police_dta_filtered$firstReportDtm[i], i), make.row.names = FALSE)
 }
 
-write.csv(peak_times,"~/acpd/data/filteredby_location_peaktime.csv")
+#peak_times <- filter(peak_times, firstReportDtm = c(''))
+

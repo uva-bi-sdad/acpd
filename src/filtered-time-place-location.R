@@ -1,37 +1,49 @@
-acpd <- read.csv("~/git/acpd/data/initial_filtering.csv")
-pacman::p_load(docstring, sdalr, DBI, dplyr, data.table, dtplyr)
-some_data = function() {
-  #' Getting some_data from the database.
-  #' 
-  #' @example some_data()
-  conn = con_db(dbname = 'jbsc',
+#### Housekeeping ####
+library(dplyr)
+library(data.table)
+library(dtplyr)
+library(sdalr)
+library(DBI)
+library(lubridate)
+
+acpd = fread("~/git/acpd/data/initial_filtering.csv")
+acpd <- read.csv("~/git/acpd.git/crime data.csv")
+
+get_crime = function() {
+  conn = con_db(dbname = 'acpd',
                 pass = get_my_password())
   output = dbReadTable(conn = conn,
-                       name = '') %>%
+                       name = 'crime') %>%
     data.table()
   on.exit(dbDisconnect(conn = conn))
   return(value = output)
-}
+  }
+acpd_data <- get_crime()
 
-acpd_data <- some_data()
 
-pacman::p_load(httr, readr, stringr, dplyr, data.table, dtplyr)
-pacman::p_load(docstring, purrr, stringi, stringr, lubridate, geosphere, dplyr, data.table, dtplyr)
 
-compute_distance_from_hq_in_kim <- function(lon, lat) {
-  output = distm(x = c(lon, lat),
-                 y = c(-77.0950, 38.8872),
-                 fun = distVincentyEllipsoid) / 1000
-  return(value = output)
-}
+# getting the year the crime took place 
 
-crime_type <- acpd_data %>%
-  mutate(nearby = map2_dbl(.x = longitude,
-                           .y = latitude,
-                           .f = compute_distance_from_hq_in_kim) <= 0.804672)
+crime_type %>%
+  filter(description %in% relevant_crime_types) %>%
+  mutate(year = year(end)) %>%
+  group_by(description, year) %>%
+  do(function(df) {
+    output = data.table(df$description[1],
+                        df$year[1],
+                        n = nrow(df))
+    })
 
-# need to keep the rows that column 'nearby' is TRUE
-nearby_incidents <- filter(crime_type, nearby %in% TRUE)
+table(crime_type %>%
+        filter(description %in% relevant_crime_types) %>%
+        pull(end) %>%
+        year())
+
+
+# filtering the nearby incidents by crimes we thought were alcohol related
+nearby_incidents = nearby_incidents %>%
+    filter(nearby %in% TRUE) %>%
+    mutate(yearOfCrime = year(x = start))
 
 relevant_crime_types <- c("PUBLIC DRUNKENNESS (DRUNK IN PUBLIC)",
                           "DUI",
@@ -86,17 +98,14 @@ relevant_crime_types <- c("PUBLIC DRUNKENNESS (DRUNK IN PUBLIC)",
                           "LIQUOR MISREPRESENTING AGE-MINOR")
 
 
-
-filtered <- acpd %>% filter(description %in% relevant_crime_types)
-
-write.csv(filtered, "~/git/acpd/data/filtered_by_location_type_time.csv")
-
+nearby_incidents = nearby_incidents %>%
+  filter(yearOfCrime %in% 2015:2017) %>%
+  filter(description %in% relevant_crime_types)
 
 
 
+filtered = acpd %>% filter(description %in% relevant_crime_types)
 
 
-
-
-
-
+saveRDS(object = filtered, file = './data/acpd/working/filtered_by_location_type_time.RDS')
+fwrite(filtered, "./data/working/filtered_by_location_type_time.csv")
