@@ -1,8 +1,12 @@
 library(readr)
 library(readxl)
+library(magrittr)
+library(dplyr)
+library(sdalr)
+library(DBI)
 #crime_by_category dataset created in crime_bar_graph.R script
-crime_data <- read_csv('crime data.csv')
-crime_categories <- read_excel('crime_categories.xlsx')
+crime_data <- read_csv('~/acpd/data/acpd/working/crime data.csv')
+crime_categories <- read_excel('~/acpd/data/acpd/working/crime_categories.xlsx')
 crime_by_category <- crime_data %>%
   dplyr::inner_join(crime_categories, by = c('description' = 'Description'))
 category_description <- crime_data %>%
@@ -14,6 +18,118 @@ category_description <- crime_data %>%
 crime_datasf <- sf::st_as_sf(crime_by_category, coords = c("longitude", "latitude"))
 
 plot(crime_datasf[,c("Category")])
+
+
+
+
+# Get Crime Hours
+
+get_crime = function() {
+  conn = con_db(dbname = 'acpd',
+                pass = get_my_password())
+  output = dbReadTable(conn = conn,
+                       name = c('clean_acpd_cat_data')) %>%
+    data.table()
+  on.exit(dbDisconnect(conn = conn))
+  return(value = output)
+}
+acpd_data <- get_crime()
+
+acpd_data <- acpd_data[, c("hour", "Category", "year")]
+data.table::setDT(acpd_data)
+acpd_data <- acpd_data[Category != "Traffic/Parking Violations", ]
+crime_hours <- acpd_data[, .N, list(hour, Category, year)]
+
+
+categories = c("DUI", "Aggravated Assault")
+
+filter_dta <- function(categories_to_keep) {
+  crime_hours <- crime_hours[Category %in% categories_to_keep]
+
+}
+
+crime_hours <- filter_dta(categories)
+
+library(plotly)
+
+crimehour_heatmap <- plot_ly(
+  y = crime_hours$hour,
+  x = crime_hours$year,
+  z = crime_hours$N,
+  type = "heatmap"
+) %>%
+  layout(xaxis = list(type = "category"),
+         yaxis = list(type = "numeric", dtick = 1))
+
+crimehour_heatmap
+
+
+# Make Heatmap
+
+
+# 
+# get_crime = function() {
+#   conn = con_db(dbname = 'sdal',
+#                 pass = get_my_password())
+#   output = dbReadTable(conn = conn,
+#                        name = c('behavior','va_pl_spotcrime_cat_08_18_dups')) %>%
+#     data.table()
+#   on.exit(dbDisconnect(conn = conn))
+#   return(value = output)
+# }
+# acpd_data <- get_crime()
+# 
+# acpd_data$crime_time <- NA
+# for (i in 1:nrow(acpd_data))
+# {
+#   hr <- acpd_data$crime_hour[i]
+#   tm <- strsplit(acpd_data$crime_date_time[i], " ")[[1]][2]
+#   min <- strsplit(tm, ":")[[1]][2]
+#   acpd_data$crime_time[i] <- paste(hr, min, sep = ":")
+# 
+#   hr <- NULL
+#   tm <- NULL
+#   min <- NULL
+#   print(i)
+# }
+# 
+# for (k in 1:nrow(acpd_data))
+# {
+#   if (nchar(acpd_data$crime_time[k]) == 4)
+#   {
+#     acpd_data$crime_time[k] <- paste("0", acpd_data$crime_time[k], sep = "")
+#     
+#   }
+#   
+# }
+# 
+# acpd_data$crime_time2<-ifelse(nchar(acpd_data$crime_time) == 4, 
+#                               paste("0", acpd_data$crime_time, sep = ""),
+#                               acpd_data$crime_time)
+# 
+# acpd_data$crime_time2 <- paste0(acpd_data$crime_time2, ":00")
+# library(chron)
+# acpd_data$crime_time3 <- chron(times = acpd_data$crime_time2)
+# 
+# 
+# 
+# acpd_data$interval2<-ifelse(acpd_data$crime_time3 >= as.Date(03:00:00) & acpd_data$crime_time3 <= as.Date(08:59:00),
+#                            "3_to_9",
+#                            NA)
+# acpd_data$interval <- NA
+# for (j in 1:5)
+# {
+#   if ((acpd_data$crime_time[j] >= "3:00") && (acpd_data$crime_time[j] <= "8:59"))
+#   {
+#     acpd_data$interval[j] <- "3_to_9"
+#   } else if ((acpd_data$crime_time[j] >= "9:00") && (acpd_data$crime_time[j] <= "14:59")) {
+#     acpd_data$interval[j] <- "9_to_15"
+#   } else if ((acpd_data$crime_time[j] >= "15:00") && (acpd_data$crime_time[j] <= "20:59")) {
+#     acpd_data$interval[j] <- "15_to_21"
+#   } else {
+#     acpd_data$interval[j] <- "21_to_3"
+#   }
+# }
 
 
 library(leaflet)
@@ -43,7 +159,8 @@ ui <- dashboardPage(
     sidebarMenu(
       menuItem(tabName = "crime type", "Crime Type", icon = icon("ban")),
       menuItem(tabName = "data", "Data", icon = icon("info-circle")),
-      menuItem(tabName = "map", "Map", icon = icon("globe"))
+      menuItem(tabName = "map", "Map", icon = icon("globe")),
+      menuItem(tabName = "heatmap", "Heatmap", icon = icon("th-large"))
     )
   ),
   dashboardBody(
@@ -92,6 +209,23 @@ ui <- dashboardPage(
               leafletOutput("map")
           )
         )
+      ),
+      tabItem(
+        tabName = "heatmap",
+        
+        fluidRow(
+          box(width = 4, title = "Heatmap Control",
+              dropdown("dd2",
+                       choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
+                       choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
+                       default_text = "Select",
+                       value = "ALL")
+          ),
+          box(width = 12,
+              title = "Arlington Crime",
+              color = "red", ribbon = TRUE,
+              leafletOutput("map"))
+        )
       )
     )
   ), theme = "cerulean"
@@ -122,7 +256,7 @@ library(stringr)
                                                    'Traffic/Parking Violations|',
                                                    'Underage Drinking/Fake ID|)')))
   
-  crime_type <- crime_report[crime_report$Crime_data==TRUE,]
+  crime_type <- crime_report[crime_report$crime_data==TRUE,]
   
   
   
@@ -132,7 +266,7 @@ library(stringr)
   output$crime_type <- renderDataTable(crime_type)
   
   # leaflet
-  crime_data <- fread("data/crime data.csv")
+  crime_data <- fread("~/acpd/data/acpd/working/crime data.csv")
   
   observeEvent(input$dd1, {
     data <- crime_data
