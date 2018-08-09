@@ -146,6 +146,8 @@ make_crime_map <- function() {
   map_pnts_2_sf <- readRDS("map_pnts_2_sf.RDS")
   
   
+  
+  if (!file.exists("m.RDS")) {
   # Map Polygons and Points
   # color palette function
   pal <- leaflet::colorBin(
@@ -328,6 +330,10 @@ make_crime_map <- function() {
     title = "Crime Count",
     opacity = 1
   )
+  saveRDS(m, "m.RDS")
+  }
+  
+  m <- readRDS("m.RDS")
   print("Launching Map...")
   m
 }
