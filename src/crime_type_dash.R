@@ -5,8 +5,8 @@ library(dplyr)
 library(sdalr)
 library(DBI)
 #crime_by_category dataset created in crime_bar_graph.R script
-crime_data <- read_csv('~/acpd/data/acpd/working/crime data.csv')
-crime_categories <- read_excel('~/acpd/data/acpd/working/crime_categories.xlsx')
+crime_data <- read_csv('data/acpd/working/crime data.csv')
+crime_categories <- read_excel('data/acpd/working/crime_categories.xlsx')
 crime_by_category <- crime_data %>%
   dplyr::inner_join(crime_categories, by = c('description' = 'Description'))
 category_description <- crime_data %>%
@@ -29,7 +29,7 @@ get_crime = function() {
                 pass = get_my_password())
   output = dbReadTable(conn = conn,
                        name = c('clean_acpd_cat_data')) %>%
-    data.table()
+    data.table::data.table()
   on.exit(dbDisconnect(conn = conn))
   return(value = output)
 }
@@ -38,30 +38,40 @@ acpd_data <- get_crime()
 acpd_data <- acpd_data[, c("hour", "Category", "year")]
 data.table::setDT(acpd_data)
 acpd_data <- acpd_data[Category != "Traffic/Parking Violations", ]
-crime_hours <- acpd_data[, .N, list(hour, Category, year)]
+crime_hours <- acpd_data[, .N, list(hour, type = Category, year)]
 
+# 
+# categories = c("DUI", "Aggravated Assault")
+# 
+# filter_dta <- function(categories_to_keep) {
+#   crime_hours <- crime_hours[Category %in% categories_to_keep]
+# 
+# }
+# 
+# crime_hours <- filter_dta(categories)
 
-categories = c("DUI", "Aggravated Assault")
-
-filter_dta <- function(categories_to_keep) {
-  crime_hours <- crime_hours[Category %in% categories_to_keep]
-
+make_heatmap <- function(crime_type, crime_hours) {
+  data.table::setDT(crime_hours)
+  ch <- crime_hours[type == crime_type,]
+  heatmap <- plotly::plot_ly(
+    y = ch$hour, 
+    x = ch$year,
+    z = ch$N,
+    type = "heatmap"
+  ) %>%
+    plotly::layout(
+      title = "Title",
+      xaxis = list(type = "category"),
+      yaxis = list(type = "numeric", dtick = 1))
+  
+  heatmap
 }
 
-crime_hours <- filter_dta(categories)
+make_heatmap("DUI", crime_hours)
 
 library(plotly)
 
-crimehour_heatmap <- plot_ly(
-  y = crime_hours$hour,
-  x = crime_hours$year,
-  z = crime_hours$N,
-  type = "heatmap"
-) %>%
-  layout(xaxis = list(type = "category"),
-         yaxis = list(type = "numeric", dtick = 1))
 
-crimehour_heatmap
 
 
 # Make Heatmap
