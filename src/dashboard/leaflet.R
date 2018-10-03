@@ -23,6 +23,7 @@ make_crime_map <- function() {
       )
     )
     . <- sf::st_transform(., 4326)
+    . <- rmapshaper::ms_simplify(., keep = 0.005)
     polys_sf <- .
     
     # Get Points (crime locations)

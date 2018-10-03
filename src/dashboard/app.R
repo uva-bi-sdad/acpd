@@ -25,8 +25,8 @@ ui <- dashboardPage(
       tabItem(
         tabName = "overview",
         fluidRow(
-          box(width = 16, 
-              title = "ARI Overview", 
+          box(width = 16,
+              title = "ARI Overview",
               color = "red",
               h1("Evaluating the Impact of the Arlington Restaurant Initiative on Alcohol-Related Crimes in Clarendon"),
               h3("Objective"),
@@ -114,7 +114,6 @@ server <- shinyServer(function(input, output, session) {
   observeEvent(input$dd2, {
     output$heatmap <- renderPlotly(make_heatmap(input$dd2, crime_hours))
   })
-  
 })
 
 shinyApp(ui, server)
