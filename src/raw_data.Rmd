@@ -1,0 +1,74 @@
+---
+title: "Raw Data Table Creation"
+author: "Kateryna Savchyn"
+date: "5/30/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Data Sources Description
+
+### Arlington County Police Incident Log
+
+Source: https://data.arlingtonva.us/dataviews/225891/police-incident-log/
+Last Updated: 05/30/2019
+
+### ABC Virginia Hearing and Appeals: Final Decisions
+
+Source: https://www.abc.virginia.gov/enforcement/hearings-and-appeals/final-decisions/
+Last Updated:07/2017 - 06/2018
+
+## Generate Raw DB Tables
+
+```{r pull incidents}
+library(DBI)
+library(httr)
+library(jsonlite)
+library(data.table)
+library(tidyverse)
+
+crime_incidence = function(arlington_api_key) {
+  output = str_c('https://api.data.arlingtonva.us/api/v2/',
+                        'datastreams/POLIC-INCID-LOG-19589/data.csv/?auth_key=',
+                        arlington_api_key) %>%
+    GET() %>%
+    content(as = 'text', encoding = 'UTF-8') %>%
+    read_csv() %>%
+    mutate(firstReportDtm = as.POSIXct(x = firstReportDtm, tz = 'EDT'),
+           lastReportDtm = as.POSIXct(x = lastReportDtm, tz = 'EDT')) %>%
+    data.table() %>%
+    setnames(old = 'reportNbr', new = 'id') %>%
+    setnames(old = 'offenseDsc', new = 'description') %>%
+    setnames(old = 'locationName', new = 'location') %>%
+    setnames(old = 'latitudeCrd', new = 'latitude') %>%
+    setnames(old = 'longitudeCrd', new = 'longitude') %>%
+    setnames(old = 'firstReportDtm', new = 'start') %>%
+    setnames(old = 'lastReportDtm', new = 'end')
+ conn <- DBI::dbConnect(drv = RPostgreSQL::PostgreSQL(),
+                    dbname = "acpd",
+                    host = "postgis",
+                    port = "5432",
+                    user = Sys.getenv("db_userid"),
+                    password = "Kmbm6k02orange!")
+  dbWriteTable(con = conn,
+               name = 'crime',
+               value = output,
+               row.names = FALSE,
+               overwrite = TRUE)
+  on.exit(dbDisconnect(conn = conn))
+  }
+
+
+crime_incidence(arlington_api_key = "a8c777094627e4dd07453fa1fd7676ed613eaa26")
+
+```
+
+```{r pull violations}
+
+```
+
+
+
