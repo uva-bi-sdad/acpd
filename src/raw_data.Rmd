@@ -147,7 +147,7 @@ licenses <- function(){
   dbDisconnect(conn = conn)
 }
 
-licenses()
+#licenses()
 
 ```
 
