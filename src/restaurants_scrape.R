@@ -1,6 +1,6 @@
 pacman::p_load(sdalr, DBI, httr, readr, stringr, dplyr, data.table, dtplyr)
-arlington_api_key = '140c712ce0aaf752160366975a7fa1cca8c81445'
-hannah_api_key = 'AIzaSyC9FKW-kjQlEXjfM3OgMZBJ7xE6zCN1JQI'
+arlington_api_key = ''
+hannah_api_key = ''
 
 abc = function() {
   conn = con_db(dbname = 'jbsc',
