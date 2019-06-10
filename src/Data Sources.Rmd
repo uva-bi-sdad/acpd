@@ -29,14 +29,26 @@ knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 - ABC licensed 
 
 # Housekeeping
-<<<<<<< HEAD
-```{r}
-pacman::p_load(sdalr, DBI, httr, readr, stringr, dplyr, data.table, dtplyr)
-=======
+
+```{r, messages = FALSE}
+library(DBI) 
+library(httr) 
+library(readr)
+library(stringr)
+library(dplyr)
+library(data.table)
+library(jsonlite)
+library(stringdist)
+library(sf)
+library(geosphere)
+library(tigris)
+
+
+```
+
 ```{r housekeeping}
 pacman::p_load(sdalr, DBI, httr, jsonlite, stringdist, sf, geosphere, tigris, lubridate, ggplot2, stringr, dplyr, data.table, dtplyr, purrr)
->>>>>>> 7ba5bb3494b51449452389d319399093ba770128
-arlington_api_key = '140c712ce0aaf752160366975a7fa1cca8c81445'
+arlington_api_key = 'a8c777094627e4dd07453fa1fd7676ed613eaa26'
 ```
 
 # Helpers
