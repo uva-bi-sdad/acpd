@@ -1,7 +1,7 @@
 ---
 title: "incidents_filtered"
 author: "Kateryna Savchyn"
-date: "2019-6-11"
+date: "2019-06-11"
 output: html_document
 ---
 
