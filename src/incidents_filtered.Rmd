@@ -23,7 +23,33 @@ compute_distance_from_hq_in_km <- function(lon, lat) {
   output = distm(x = c(lon, lat),
                  y = c(-77.0950, 38.8872),
                  fun = distVincentyEllipsoid) / 1000
-  }
+}
+
+category_parser <- function(description) {
+  if (str_detect(string = description,
+                 pattern = "(?i)(assault|battery)")) {
+    return(value = "Aggravated Assault")
+  } else if (str_detect(string = description,
+                        pattern = "(?i)(exposure|peace|disorder|urinat)")) {
+    return(value = "Disorderly Conduct")
+  } else if (str_detect(string = description,
+                        pattern = "(?i)(drunk|intoxication|alcohol|liquor)")){
+    return(value = "Drunkenness")
+  } else if (str_detect(string = description,
+                        pattern = "(?i)(dui|container|breath|blood test|drivinig under influence|refusal of breath|drinking while driving)")){
+    return(value="DUI")
+  } else if (str_detect(string = description,
+                        pattern = "(?i)(sex|rape|sodomy)")){
+    return(value = "Sexual Assault/Rape")
+  } else if (str_detect(string = description,
+                        pattern = "(?i)(minor|fake|fictitious|liquor misrepresenting age)")){
+    return(value = "Underage Drinking/Fake ID")
+  } else if (str_detect(string = description,
+                        pattern = "(?i)(parking violation|traffic violation)")){
+    return(value = "Traffic/Parking Violation")
+    } else {return(value = 'Other')
+}
+}
 ```
 
 ## Function to Pull, Filter, and Write Incidents data
@@ -38,6 +64,7 @@ refresh_filtered_incidents <- function(){
                     password = Sys.getenv("db_pwd"))
   acpd_data <- dbReadTable(conn = conn,
                            name = 'incidents')
+
   acpd_filtered <- acpd_data %>%
     # create nearby filter field for locations within .5 mile radius of clarendon metro
     dt_mutate(nearby = map2_dbl(.x = longitude,
@@ -46,14 +73,17 @@ refresh_filtered_incidents <- function(){
     dt_mutate(day = weekdays(as_date(acpd_data$start)), 
               hour = as.integer(hour(acpd_data$start))) %>%
     dt_mutate(crime_type = str_detect(string = description,
-                                      pattern ='(DRUNK|DUI|ASSAULT|POSSESSION|SEXUAL|DISORDERLY)')) %>%
+                                      pattern ='(DRUNK|DUI|ASSAULT|POSSESSION|SEXUAL|DISORDERLY)')) %>% 
+    dt_filter(crime_type) %>% dt_select(-crime_type) %>%
       ## Create indicator party time = THURS-SUN 9PM-5AM (21:24, 1:5) but also include Cinco de Mayo and St. Patricks Day
+    dt_mutate(crime_cat = map_chr(.x = description,
+                                  .f = category_parser) %>%
+                as.factor()) %>% dt_filter(crime_cat != "Other") %>% 
     dt_mutate(nightlife = (day %in% c("Thursday", "Friday", "Saturday", "Sunday") |
                              str_detect(string = start,
                                         pattern = "(05-05|05-06|03-17|03-18)$")) &
-                          (hour %in% c(1:5,21:24)))  %>% 
-      ## Filter for crime-type
-    dt_filter(crime_type) %>% dt_select(-crime_type)
+                          (hour %in% c(1:5,21:24)))  
+    
   # write out the output to DB
   dbWriteTable(con = conn,
                name = 'incidents_filtered',
