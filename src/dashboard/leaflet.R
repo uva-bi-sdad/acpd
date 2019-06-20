@@ -1,6 +1,7 @@
 
 
 make_crime_map <- function() {
+  #browser()
   library(sf)
   county_fips <- "013"
   crime_types <-
@@ -16,13 +17,13 @@ crime_years <- c(2015, 2016, 2017, 2018)
   
   if (!file.exists("map_polys_sf.RDS")) {
     # Get Polygons (CENSUS blocks)
-    conn <- dbConnect(drv = PostgreSQL(),
+    conn <- DBI::dbConnect(drv =RPostgreSQL::PostgreSQL(),
                       dbname = "acpd",
                       host = "postgis_1",
                       port = 5432L,
                       user = Sys.getenv("db_userid"),
                       password = Sys.getenv("db_pwd"))
-    census_blocks_map <- st_read(dsn = conn, layer = "arlington_census_blocks") %>%
+    census_blocks_map <- sf::st_read(dsn = conn, layer = "arlington_census_blocks") %>%
       rmapshaper::ms_simplify(keep = 0.005)
     
     # . <- sf::st_read()
@@ -41,9 +42,9 @@ crime_years <- c(2015, 2016, 2017, 2018)
     polys_sf$FULLBLOCKID <- NULL
     
     # Get Points (crime locations)
-    crime_locations <- dbReadTable(conn = conn,
+    crime_locations <- DBI::dbReadTable(conn = conn,
                               name = c('incidents_filtered')) %>%
-          data.table::data.table() %>% dt_mutate(year = year(acpd_data$start)) %>% dt_filter(year %in% crime_years)
+          data.table::data.table() %>% dt_mutate(year = year(start)) %>% dt_filter(year %in% crime_years)
       # query = paste0(
       #   "select * from incidents_filtered where cast(year as int) in (",
       #   paste(crime_years, collapse = ","),
@@ -72,7 +73,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
     pnts_sf <- crime_locations
     
     # Get Points (restaurant locations)
-    restaurants <- dbReadTable(conn = conn,
+    restaurants <- DBI::dbReadTable(conn = conn,
                        name = 'vabc_arlington_restaurants') %>%
                        data.table::data.table() %>% dt_mutate(priv = str_detect(string = PrivDesc,
                                                                                       pattern ="(?i)(wine|beer)")) %>% 
@@ -89,8 +90,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
     # Join Polygons to Points (retains polygon geometry)
     poly_points <- sf::st_join(polys_sf, pnts_sf, join = sf::st_intersects)
     cj <-
-      data.table::CJ(polys_sf$"GEOID10", crime_years)[, .(GEOID10 = V1, crime_year =
-                                                            V2)]
+      data.table::CJ(polys_sf$"GEOID10", crime_years)[, .(GEOID10 = V1, crime_year = crime_years)]
     cj_sf <- merge(polys_sf, cj, by = 'GEOID10',all.y = TRUE)
     . <- sf::st_join(cj_sf, poly_points, join = sf::st_equals)
     . <-
@@ -333,7 +333,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
     data = map_pnts_2_sf,
     group = "restaurants",
     icon = icons,
-    label = ~ as.character(trade_name),
+    label = ~ as.character(Restaurant),
     options = leaflet::pathOptions(pane = "places")
   )
   
