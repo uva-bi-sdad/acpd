@@ -1,3 +1,5 @@
+
+
 make_crime_map <- function() {
   library(sf)
   county_fips <- "013"
@@ -9,33 +11,44 @@ make_crime_map <- function() {
       "DUI",
       "Sexual Assault/Rape"
     )
-  crime_years <- c(2015, 2016, 2017, 2018)
+crime_years <- c(2015, 2016, 2017, 2018)
   
   
   if (!file.exists("map_polys_sf.RDS")) {
     # Get Polygons (CENSUS blocks)
-    . <- sf::st_read(
-      sdalr::con_db("sdal"),
-      query = paste0(
-        "select * from geospatial$census_tl.tl_2017_51_tabblock10 where \"COUNTYFP10\" = '",
-        county_fips,
-        "'"
-      )
-    )
-    . <- sf::st_transform(., 4326)
-    . <- rmapshaper::ms_simplify(., keep = 0.005)
-    polys_sf <- .
+    conn <- dbConnect(drv = PostgreSQL(),
+                      dbname = "acpd",
+                      host = "postgis_1",
+                      port = 5432L,
+                      user = Sys.getenv("db_userid"),
+                      password = Sys.getenv("db_pwd"))
+    census_blocks_map <- st_read(dsn = conn, layer = "arlington_census_blocks") %>%
+      rmapshaper::ms_simplify(keep = 0.005)
+    
+    # . <- sf::st_read()
+                     
+      # sdalr::con_db("sdal"),
+      # query = paste0(
+      #   "select * from geospatial$census_tl.tl_2017_51_tabblock10 where \"COUNTYFP10\" = '",
+      #   county_fips,
+      #   "'"
+    #   )
+    # )
+    census_blocks_map <- sf::st_transform(census_blocks_map, 4326)
+    census_blocks_map <- rmapshaper::ms_simplify(census_blocks_map, keep = 0.005)
+    polys_sf <- census_blocks_map
+    polys_sf$GEOID10 <- polys_sf$FULLBLOCKID
+    polys_sf$FULLBLOCKID <- NULL
     
     # Get Points (crime locations)
-    . <- sf::st_read(
-      sdalr::con_db("acpd"),
-      query = paste0(
-        "select * from clean_acpd_cat_data where cast(year as int) in (",
-        paste(crime_years, collapse = ","),
-        ")"
-      )
-    )
-    names(.) <-
+    crime_locations <- dbReadTable(conn = conn,
+                              name = c('incidents_filtered')) %>%
+          data.table::data.table() %>% dt_mutate(year = year(acpd_data$start)) %>% dt_filter(year %in% crime_years)
+      # query = paste0(
+      #   "select * from incidents_filtered where cast(year as int) in (",
+      #   paste(crime_years, collapse = ","),
+      #  ")"
+    names(crime_locations) <-
       c(
         "id",
         "crime_description",
@@ -44,44 +57,46 @@ make_crime_map <- function() {
         "crime_longitude",
         "start",
         "end",
-        "crime_year",
-        "month",
+        "nearby",
         "day_of_week",
         "crime_hour",
-        "Description",
-        "crime_type"
+        "crime_type",
+        "nightlife",
+        "year"
       )
-    .$crime_date <- .$end
-    .$crime_date_time <- as.character(.$end)
-    . <-
-      sf::st_as_sf(., coords = c("crime_longitude", "crime_latitude"))
-    sf::st_crs(.) <- 4326
-    pnts_sf <- .
-    
-    
+    crime_locations$crime_date <- crime_locations$end
+    crime_locations$crime_date_time <- as.character(crime_locations$end)
+    crime_locations <-
+      sf::st_as_sf(crime_locations, coords = c("crime_longitude", "crime_latitude"))
+    sf::st_crs(crime_locations) <- 4326
+    pnts_sf <- crime_locations
     
     # Get Points (restaurant locations)
-    . <- sf::st_read(
-      sdalr::con_db("acpd"),
-      query = "select INITCAP(trade_name) trade_name, longitude, latitude
-      from vabc_arlington_restaurants where privilege_status = 'Active'
-      and (privilege_description like '%Wine%' or privilege_description like '%Beer%')"
-    )
-    . <- sf::st_as_sf(., coords = c("longitude", "latitude"))
-    pnts_2_sf <- .
+    restaurants <- dbReadTable(conn = conn,
+                       name = 'vabc_arlington_restaurants') %>%
+                       data.table::data.table() %>% dt_mutate(priv = str_detect(string = PrivDesc,
+                                                                                      pattern ="(?i)(wine|beer)")) %>% 
+                       dt_filter(priv) %>% dt_filter(LicStatus_StatusDesc %in% 'Active')
+      # sdalr::con_db("acpd"),
+      # query = "select INITCAP(trade_name) trade_name, longitude, latitude
+      # from vabc_arlington_restaurants where privilege_status = 'Active'
+      # and (privilege_description like '%Wine%' or privilege_description like '%Beer%')"
+    #)
+    restaurants <- sf::st_as_sf(restaurants, coords = c("X", "Y"))
+    pnts_2_sf <- restaurants
     
     
     # Join Polygons to Points (retains polygon geometry)
-    . <- sf::st_join(polys_sf, pnts_sf, join = sf::st_intersects)
+    poly_points <- sf::st_join(polys_sf, pnts_sf, join = sf::st_intersects)
     cj <-
       data.table::CJ(polys_sf$"GEOID10", crime_years)[, .(GEOID10 = V1, crime_year =
                                                             V2)]
-    cj_sf <- merge(polys_sf, cj, by = "GEOID10", all.y = TRUE)
-    . <- sf::st_join(cj_sf, ., join = sf::st_equals)
+    cj_sf <- merge(polys_sf, cj, by = 'GEOID10',all.y = TRUE)
+    . <- sf::st_join(cj_sf, poly_points, join = sf::st_equals)
     . <-
       .[, c(
         "GEOID10.x",
-        "crime_year.x",
+        "crime_year",
         "crime_description",
         "crime_date_time",
         "crime_address",
@@ -90,7 +105,7 @@ make_crime_map <- function() {
         "crime_type"
       )]
     names(.)[names(.) == "GEOID10.x"] = "GEOID10"
-    names(.)[names(.) == "crime_year.x"] = "crime_year"
+  #  names(.)[names(.) == "crime_year.x"] = "crime_year"
     polys_pnts_sf <- .
     
     
@@ -129,10 +144,35 @@ make_crime_map <- function() {
     . <- cbind(pnts_2_sf, sf::st_coordinates(pnts_2_sf))
     .$in_circle <- mapply(within_circle, .$X, .$Y)
     .$ARI <- FALSE
-    .[.$trade_name %in% c('Whitlows On Wilson',
-                          'Wilson Hardware',
-                          'Bar Bao',
-                          'Pamplona'), "ARI"] <- TRUE
+    .[.$Restaurant %in% c('Bar Bao',
+                          'Barley Mac',
+                          'Celtic House',
+                          'Courthaus Social',
+                          'Crystal City Sports Pub',
+                          'Don Tito',
+                          'Fiona\'s Irish Pub',
+                          'Freddies Beach Bar',
+                          'Frederico Ristorante Italiano',
+                          'G.O.A.T',
+                          'Irelands Four Courts',
+                          'Lebanese Taverna-Pentagon Row',
+                          'Lebanese Taverna-Westover',
+                          'Liberty Tavern',
+                          'Lyon Hall',
+                          'Mexicali Blues Restaurant',
+                          'Nam Viet Restaurant',
+                          'O\'Sullivans',
+                          'Pamplona',
+                          'Punch Bowl Social',
+                          'Ragtime',
+                          'Rebellion On The Pike',
+                          'Rhodeside Grill',
+                          'Samuel Beckett\'s Irish Gastro Pub',
+                          'The Local Oyster',
+                          'The Spirits of 76',
+                          'Whitlows on Wilson',
+                          'William Jeffreys Tavern',
+                          'Wilson\'s Hardware'), "ARI"] <- TRUE
     map_pnts_2_sf <- .
     
     saveRDS(map_pnts_2_sf, "map_pnts_2_sf.RDS")
@@ -145,7 +185,6 @@ make_crime_map <- function() {
   map_polys_sf <- readRDS("map_polys_sf.RDS")
   map_pnts_sf <- readRDS("map_pnts_sf.RDS")
   map_pnts_2_sf <- readRDS("map_pnts_2_sf.RDS")
-  
   
   
   if (!file.exists("m.RDS")) {

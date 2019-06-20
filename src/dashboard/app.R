@@ -6,6 +6,10 @@ library(shiny.semantic)
 library(ggplot2)
 library(plotly)
 library(leaflet)
+library(sf)
+library(maditr)
+library(stringr)
+library(DT)
 
 ui <- dashboardPage(
   dashboardHeader(color = "blue", title = "Alcohol-Related Crime", inverted = TRUE),
