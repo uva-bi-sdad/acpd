@@ -26,8 +26,9 @@ crimes_data <- readRDS("crimes.RDS")
 #crimes_data <- readRDS("src/dashboard/crimes.RDS")
 
 make_datatable <- function(crime_type, crimes_data) {
+  #browser()
   data.table::setDT(crimes_data)
-  c <- crimes_data[crime_cat == crime_type, ]
+  c <- crimes_data[Category == crime_type, ]
   dt <-
     DT::datatable(
       c,
