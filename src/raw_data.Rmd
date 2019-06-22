@@ -201,3 +201,21 @@ ari_restaurants_layer <- function() {
   }
 ari_restaurants_layer()
 ```
+
+```{r}
+# census block table
+census_blocks <- function() {
+  conn <- dbConnect(drv = PostgreSQL(),
+                    host = "postgis_1",
+                    dbname = "acpd",
+                    port = 5432L,
+                    user = Sys.getenv("db_userid"),
+                    password = Sys.getenv("db_pwd"))
+  if (!dbExistsTable(conn = conn, name = "arlington_census_blocks")) {
+    st_read(dsn = "https://opendata.arcgis.com/datasets/093fb97eabcc4829b72755a08c1b4766_0.geojson") %>%
+      st_write(dsn = conn, layer = "arlington_census_blocks")
+  }
+  on.exit(expr = dbDisconnect(conn = conn))
+}
+census_blocks()
+```
