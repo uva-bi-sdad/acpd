@@ -2,8 +2,6 @@
 
 make_crime_map <- function() {
   #browser()
-  library(sf)
-  county_fips <- "013"
   crime_types <-
     c(
       "Aggravated Assault",
@@ -15,7 +13,7 @@ make_crime_map <- function() {
 crime_years <- c(2015, 2016, 2017, 2018)
   
   
-  if (!file.exists("map_polys_sf.RDS")) {
+  if (file.exists("map_polys_sf.RDS")) {
     # Get Polygons (CENSUS blocks)
     conn <- DBI::dbConnect(drv =RPostgreSQL::PostgreSQL(),
                       dbname = "acpd",
@@ -26,15 +24,6 @@ crime_years <- c(2015, 2016, 2017, 2018)
     census_blocks_map <- sf::st_read(dsn = conn, layer = "arlington_census_blocks") %>%
       rmapshaper::ms_simplify(keep = 0.005)
     
-    # . <- sf::st_read()
-                     
-      # sdalr::con_db("sdal"),
-      # query = paste0(
-      #   "select * from geospatial$census_tl.tl_2017_51_tabblock10 where \"COUNTYFP10\" = '",
-      #   county_fips,
-      #   "'"
-    #   )
-    # )
     census_blocks_map <- sf::st_transform(census_blocks_map, 4326)
     census_blocks_map <- rmapshaper::ms_simplify(census_blocks_map, keep = 0.005)
     polys_sf <- census_blocks_map
@@ -45,10 +34,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
     crime_locations <- DBI::dbReadTable(conn = conn,
                               name = c('incidents_filtered')) %>%
           data.table::data.table() %>% dt_mutate(year = year(start)) %>% dt_filter(year %in% crime_years)
-      # query = paste0(
-      #   "select * from incidents_filtered where cast(year as int) in (",
-      #   paste(crime_years, collapse = ","),
-      #  ")"
+ 
     names(crime_locations) <-
       c(
         "id",
@@ -78,11 +64,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
                        data.table::data.table() %>% dt_mutate(priv = str_detect(string = PrivDesc,
                                                                                       pattern ="(?i)(wine|beer)")) %>% 
                        dt_filter(priv) %>% dt_filter(LicStatus_StatusDesc %in% 'Active')
-      # sdalr::con_db("acpd"),
-      # query = "select INITCAP(trade_name) trade_name, longitude, latitude
-      # from vabc_arlington_restaurants where privilege_status = 'Active'
-      # and (privilege_description like '%Wine%' or privilege_description like '%Beer%')"
-    #)
+
     restaurants <- sf::st_as_sf(restaurants, coords = c("X", "Y"))
     pnts_2_sf <- restaurants
     
@@ -91,12 +73,15 @@ crime_years <- c(2015, 2016, 2017, 2018)
     poly_points <- sf::st_join(polys_sf, pnts_sf, join = sf::st_intersects)
     cj <-
       data.table::CJ(polys_sf$"GEOID10", crime_years)[, .(GEOID10 = V1, crime_year = crime_years)]
-    cj_sf <- merge(polys_sf, cj, by = 'GEOID10',all.y = TRUE)
+    cj_sf <- merge(polys_sf, cj)
+    poly_points <- poly_points %>% setnames(old =  'year', new = 'crime_year')
+    
+    # . <- merge(x = data.table(cj_sf), y = data.table(poly_points))
     . <- sf::st_join(cj_sf, poly_points, join = sf::st_equals)
     . <-
       .[, c(
         "GEOID10.x",
-        "crime_year",
+        "crime_year.x",
         "crime_description",
         "crime_date_time",
         "crime_address",
@@ -104,10 +89,9 @@ crime_years <- c(2015, 2016, 2017, 2018)
         "crime_hour",
         "crime_type"
       )]
-    names(.)[names(.) == "GEOID10.x"] = "GEOID10"
-  #  names(.)[names(.) == "crime_year.x"] = "crime_year"
-    polys_pnts_sf <- .
-    
+  names(.)[names(.) == "GEOID10.x"] = "GEOID10"
+  names(.)[names(.) == "crime_year.x"] = "crime_year"
+  polys_pnts_sf <- .
     
     # polys_pnts_sf <- merge(polys_pnts_sf, cj, by = c("GEOID10", "crime_year"), all.y = TRUE)
     # polys_pnts_sf <- polys_pnts_sf[!is.na(.$crime_latitude),]
@@ -118,15 +102,15 @@ crime_years <- c(2015, 2016, 2017, 2018)
     
     
     # Prepare Polygon Dataset for Mapping
-    . <-
-      dplyr::group_by(polys_pnts_sf, GEOID10, crime_type, crime_year)
-    . <- dplyr::summarise(., N = length(GEOID10))
-    . <- tidyr::spread(data = .,
-                       key = c("crime_type"),
-                       value = N)
+    . <- pnts_polys_sf %>% group_by(GEOID10, crime_type, year) %>% summarise(N = length(GEOID10))
+    # . <- dplyr::summarise(., N = length(GEOID10))
+    # . <- tidyr::spread(data = .,
+    #                    key = c("crime_type", "year", "GEOID10"),
+    #                    value = N)
     map_polys_sf <- .
     
     saveRDS(map_polys_sf, "map_polys_sf.RDS")
+   . <- readRDS("map_polys_sf.RDS")
     
     
     # Prepare Point Dataset for Mapping
@@ -187,7 +171,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
   map_pnts_2_sf <- readRDS("map_pnts_2_sf.RDS")
   
   
-  if (!file.exists("m.RDS")) {
+  if (TRUE) {
   # Map Polygons and Points
   # color palette function
   pal <- leaflet::colorBin(
@@ -213,11 +197,12 @@ crime_years <- c(2015, 2016, 2017, 2018)
   for (c in crime_types) {
     for (y in crime_years) {
       plydt <-
-        dplyr::filter(map_polys_sf, crime_year == y)[, c(c, "GEOID10")]
+        dplyr::filter(map_polys_sf, crime_type == c, year == y)[, c("crime_type","year", "GEOID10", "N")]
       
       labels <- lapply(
-        paste(
-          "<strong>county:",
+        paste("<strong>year:",
+              plydt$year,
+          "<strong>county??????:",
           substr(plydt$GEOID10, 3, 5),
           "</strong><br />",
           "tract:",
@@ -231,7 +216,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
           "<br />",
           "measure: count<br />",
           "value:",
-          plydt[, c][[1]]
+          sum(plydt$N)
         ),
         htmltools::HTML
       )
@@ -250,7 +235,6 @@ crime_years <- c(2015, 2016, 2017, 2018)
       )
     }
   }
-  
   # add point data layers
   print("Adding Point Layers...")
   for (c in crime_types) {
@@ -359,7 +343,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
     options = leaflet::layersControlOptions(collapsed = TRUE)
   )
   
-  m <- leaflet::showGroup(m, cys[1])
+  m <- leaflet::showGroup(m, cys[2])
   
   # add Legend
   m <- leaflet::addLegend(
@@ -377,3 +361,4 @@ crime_years <- c(2015, 2016, 2017, 2018)
   print("Launching Map...")
   m
 }
+

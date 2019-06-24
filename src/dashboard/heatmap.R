@@ -1,7 +1,7 @@
 
 # Get Crime Hours
 
-if (!file.exists("crime_hours.RDS")) {
+if (file.exists("crime_hours.RDS")) {
   get_crime = function() {
     conn <- dbConnect(drv = PostgreSQL(),
                       dbname = "acpd",
