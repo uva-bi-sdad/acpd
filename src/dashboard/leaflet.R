@@ -1,7 +1,6 @@
 
 
 make_crime_map <- function() {
-  #browser()
   crime_types <-
     c(
       "Aggravated Assault",
@@ -102,11 +101,12 @@ crime_years <- c(2015, 2016, 2017, 2018)
     
     
     # Prepare Polygon Dataset for Mapping
-    . <- pnts_polys_sf %>% group_by(GEOID10, crime_type, year) %>% summarise(N = length(GEOID10))
-    # . <- dplyr::summarise(., N = length(GEOID10))
-    # . <- tidyr::spread(data = .,
-    #                    key = c("crime_type", "year", "GEOID10"),
-    #                    value = N)
+    . <-
+      dplyr::group_by(polys_pnts_sf, GEOID10, crime_type, crime_year)
+    . <- dplyr::summarise(., N = length(GEOID10))
+    . <- tidyr::spread(data = .,
+                       key = c("crime_type"),
+                       value = N)
     map_polys_sf <- .
     
     saveRDS(map_polys_sf, "map_polys_sf.RDS")
@@ -197,12 +197,12 @@ crime_years <- c(2015, 2016, 2017, 2018)
   for (c in crime_types) {
     for (y in crime_years) {
       plydt <-
-        dplyr::filter(map_polys_sf, crime_type == c, year == y)[, c("crime_type","year", "GEOID10", "N")]
+        dplyr::filter(map_polys_sf, crime_year == y)[, c(c,"crime_year", "GEOID10")]
       
       labels <- lapply(
         paste("<strong>year:",
-              plydt$year,
-          "<strong>county??????:",
+              plydt$crime_year,
+          "</strong><br />", "county:",
           substr(plydt$GEOID10, 3, 5),
           "</strong><br />",
           "tract:",
@@ -216,7 +216,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
           "<br />",
           "measure: count<br />",
           "value:",
-          sum(plydt$N)
+          plydt[, c][[1]]
         ),
         htmltools::HTML
       )
@@ -343,7 +343,7 @@ crime_years <- c(2015, 2016, 2017, 2018)
     options = leaflet::layersControlOptions(collapsed = TRUE)
   )
   
-  m <- leaflet::showGroup(m, cys[2])
+ # m <- leaflet::showGroup(m, cys[1])
   
   # add Legend
   m <- leaflet::addLegend(
