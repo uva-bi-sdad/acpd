@@ -119,7 +119,9 @@ ggmap(arlington.map) +
   geom_polygon(data = myCircles1, aes(lon, lat, group = ID), color = "firebrick1", size = 1.5, alpha = 0) +
   geom_polygon(data = myCircles2, aes(lon, lat, group = ID), color = "firebrick3", size = 1, alpha = 0) + 
   geom_polygon(data = myCircles3, aes(lon, lat, group = ID), color = "firebrick4", size = 1, alpha = 0) +
-  labs(x = "Longitude",y = "Latitude") 
+  labs(x = "Longitude",y = "Latitude") + 
+  ggtitle("ARI Map Boundary and Participants")  + theme(plot.title = element_text(hjust = 0.5)) +
+  theme(legend.text=element_text(size=12))
 
 ggsave("~/acpd/figures/ari_boundary.png")
 ```
