@@ -1,0 +1,70 @@
+---
+title: "incidents_filtered"
+author: "Kateryna Savchyn"
+date: "2019-06-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Install packages
+```{r install packages, message=FALSE}
+for (pkg in c("lubridate", "here", "RPostgreSQL", "maditr", "geosphere", "purrr", "stringr")) {
+  library(pkg, character.only = TRUE)
+  }
+```
+
+## Helper Functions
+```{r read-in incidents}
+compute_distance_from_hq_in_km <- function(lon, lat) {
+  distm(x = c(lon, lat),
+        y = c(-77.0950, 38.8872), # Clarendon Metro Station
+        fun = distVincentyEllipsoid) / 1e3
+  }
+```
+
+## Function to Pull, Filter, and Write Incidents data
+```{r write out filtered incidents}
+refresh_filtered_incidents <- function() {
+  # add stop block that throws error if table doesn't exist
+  conn <- dbConnect(drv = PostgreSQL(),
+                    dbname = "acpd",
+                    host = "postgis_1",
+                    port = 5432L,
+                    user = Sys.getenv("db_userid"),
+                    password = Sys.getenv("db_pwd"))
+  acpd_data <- dbReadTable(conn = conn,
+                           name = 'incidents')
+  acpd_filtered <- acpd_data %>%
+    # create nearby filter field for locations within .5 mile radius of clarendon metro
+    dt_mutate(distance = map2_dbl(.x = longitude,
+                                  .y = latitude,
+                                  # 0.5 miles
+                                  .f = compute_distance_from_hq_in_km)) %>%
+    dt_mutate(day = weekdays(x = as_date(x = acpd_data$start)),
+              hour = as.integer(x = hour(x = acpd_data$start)),
+              nearby = distance <= 0.804672) %>%
+    dt_mutate(crime_type = str_detect(string = description,
+                                      pattern = "(DRUNK|DUI|ASSAULT|POSSESSION|SEXUAL|DISORDERLY)")) %>%
+      ## Create indicator party time = THURS-SUN 9PM-5AM (21:24, 1:5) but also include Cinco de Mayo and St. Patricks Day
+    dt_mutate(nightlife = (day %in% c("Thursday", "Friday", "Saturday", "Sunday") |
+                             str_detect(string = start,
+                                        pattern = "(05-05|05-06|03-17|03-18)$")) &
+                          (hour %in% c(1:5, 21:24)))  %>% 
+      ## Filter for crime-type
+    dt_filter(crime_type) %>%
+    dt_select(-crime_type)
+  # write out the output to DB
+  dbWriteTable(con = conn,
+               name = 'incidents_filtered',
+               value = acpd_filtered,
+               row.names = FALSE,
+               overwrite = TRUE)
+  on.exit(expr = dbDisconnect(conn = conn))
+  }
+refresh_filtered_incidents()
+```
+
+
