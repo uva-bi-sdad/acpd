@@ -29,7 +29,7 @@ make_crime_map <- function() {
         setnames(old = "crime_cat", new = "crime_categories") %>%
         st_as_sf(coords = c("longitude", "latitude")) %>%
         st_set_crs(value = st_crs(x = census_blocks))
-      
+      dbDisconnect(conn)
       skeleton <- expand.grid(na.omit(object = unique(x = census_blocks$FULLBLOCKID)),
                               na.omit(object = unique(x = police_incidents$crime_year)),
                               na.omit(object = unique(x = police_incidents$crime_categories))) %>%
@@ -49,13 +49,13 @@ make_crime_map <- function() {
                 dt_select(FULLBLOCKID, geometry) %>%
                 setnames(old = "FULLBLOCKID", new = "GEOID10"),
               by = "GEOID10") %>%
-        dt_arrange(GEOID10, crime_year) %>% st_as_sf() 
+        dt_arrange(GEOID10, crime_year) %>%
+        st_as_sf() %>%
+        saveRDS("map_polys_sf.RDS")
     }
   }
   
-  census_block_year_crime_type_count <- get_census_block_year_crime_type_count()
-  
-  saveRDS(census_block_year_crime_type_count, "map_polys_sf.RDS")
+  get_census_block_year_crime_type_count()
   
   # Get Points (restaurant locations)
   conn <- DBI::dbConnect(drv =RPostgreSQL::PostgreSQL(),
@@ -69,14 +69,12 @@ make_crime_map <- function() {
     data.table::data.table() %>% dt_mutate(priv = str_detect(string = PrivDesc,
                                                              pattern ="(?i)(wine|beer)")) %>% 
     dt_filter(priv) %>% dt_filter(LicStatus_StatusDesc %in% 'Active')
-  
+  dbDisconnect(conn)
   restaurants <- sf::st_as_sf(restaurants, coords = c("X", "Y"))
   pnts_2_sf <- restaurants
   
-  
-  # Prepare Point Dataset for Mapping
-  saveRDS(pnts_2_sf, "map_pnts_sf.RDS")
-  
+  # Prepare Point Dataset for Mapping - Restaurants
+  saveRDS(pnts_2_sf, "map_pnts_2_sf.RDS")
   
   # Prepare Second Point Dataset for Mapping
   within_circle <- function(lon, lat, ctr_pnt = 402.336) {
@@ -89,6 +87,26 @@ make_crime_map <- function() {
   map_pnts_2_sf <- .
   
   saveRDS(map_pnts_2_sf, "map_pnts_2_sf.RDS")
+  
+  # Crime Points
+  conn <- DBI::dbConnect(drv =RPostgreSQL::PostgreSQL(),
+                         dbname = "acpd",
+                         host = "postgis_1",
+                         port = 5432L,
+                         user = Sys.getenv("db_userid"),
+                         password = Sys.getenv("db_pwd"))
+  census_blocks <- sf::st_read(dsn = conn, layer = "arlington_census_blocks")
+  police_incidents <- dbReadTable(conn = conn,
+                                  name = "incidents_filtered") %>%
+    dt_select(id, description, start, crime_cat, nearby, day, hour, nightlife, longitude, latitude) %>%
+    dt_mutate(crime_year = year(x = start)) %>%
+    setnames(old = "crime_cat", new = "crime_categories") %>%
+    st_as_sf(coords = c("longitude", "latitude")) %>%
+    st_set_crs(value = st_crs(x = census_blocks)) %>% st_as_sf()
+  
+  dbDisconnect(conn)
+  
+  saveRDS(police_incidents, "map_pnts_sf.RDS")
   
   # Load Data Files
   print("Loading Data Files...")
@@ -166,15 +184,15 @@ make_crime_map <- function() {
       for (y in crime_years) {
         pnt_dt <-
           map_pnts_sf[map_pnts_sf$crime_year == y &
-                        map_pnts_sf$crime_type == c, ]
+                        map_pnts_sf$crime_categories == c, ]
         
         labels <- lapply(
           paste(
             "<strong>crime description:",
-            pnt_dt$crime_description,
+            pnt_dt$description,
             "</strong><br />",
             "crime date:",
-            pnt_dt$crime_date_time,
+            pnt_dt$starts,
             "<br />"
           ),
           htmltools::HTML
