@@ -44,12 +44,12 @@ make_crime_map <- function() {
                   by = c("GEOID10", "crime_year", "crime_categories")) %>%
         dt_select("GEOID10", "crime_year", "crime_categories", "count") %>%
         unique() %>%
+       dcast(GEOID10 + crime_year ~ crime_categories, value.var = "count") %>%  
         merge(y = census_blocks %>%
                 dt_select(FULLBLOCKID, geometry) %>%
                 setnames(old = "FULLBLOCKID", new = "GEOID10"),
               by = "GEOID10") %>%
-        dt_arrange(GEOID10, crime_year, crime_categories) %>%
-        st_as_sf() %>% dcast(GEOID10 + crime_year ~ crime_categories, value.var = "count")
+        dt_arrange(GEOID10, crime_year) %>% st_as_sf() 
     }
   }
   
