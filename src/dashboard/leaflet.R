@@ -285,6 +285,5 @@ make_crime_map <- function() {
   m <- readRDS("m.RDS")
   print("Launching Map...")
   m
-  dbDisconnect(conn = conn)
 }
 
