@@ -1,6 +1,6 @@
 #========Interactive Dashboard======================
 
-for (pkg in c("DBI","shiny", "semantic.dashboard", "shiny.semantic", "ggplot2", "plotly", "leaflet", "sf", "maditr", "stringr", "DT")) {
+for (pkg in c("RPostgreSQL","DBI","shiny", "semantic.dashboard", "shiny.semantic", "ggplot2", "plotly", "leaflet", "sf", "maditr", "stringr", "DT")) {
   library(pkg, character.only = TRUE)
 }
 

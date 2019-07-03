@@ -192,7 +192,7 @@ make_crime_map <- function() {
             pnt_dt$description,
             "</strong><br />",
             "crime date:",
-            pnt_dt$starts,
+            pnt_dt$start,
             "<br />"
           ),
           htmltools::HTML
