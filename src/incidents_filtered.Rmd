@@ -11,13 +11,15 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Install packages
 ```{r install packages, message=FALSE}
-for (pkg in c("DBI", "RPostgreSQL", "maditr", "geosphere", "purrr", "stringr", "lubridate")) {
+
+for (pkg in c("lubridate", "here", "RPostgreSQL", "maditr", "geosphere", "purrr", "stringr")) {
   library(pkg, character.only = TRUE)
   }
 ```
 
 ## Helper Functions
 ```{r read-in incidents}
+
 # outputs km between location and clarendon metro as origin
 compute_distance_from_hq_in_km <- function(lon, lat) {
   output = distm(x = c(lon, lat),
@@ -54,6 +56,7 @@ category_parser <- function(description) {
 
 ## Function to Pull, Filter, and Write Incidents data
 ```{r write out filtered incidents}
+
 refresh_filtered_incidents <- function(){
   # add stop block that throws error if table doesn't exist
   conn <- dbConnect(drv = PostgreSQL(),
@@ -65,17 +68,20 @@ refresh_filtered_incidents <- function(){
   acpd_data <- dbReadTable(conn = conn,
                            name = 'incidents')
 
+
   acpd_filtered <- acpd_data %>%
     # create nearby filter field for locations within .5 mile radius of clarendon metro
     dt_mutate(nearby = map2_dbl(.x = longitude,
                                 .y = latitude,
+                                 # 0.5 miles
                                 .f = compute_distance_from_hq_in_km) <= 0.804672) %>%
-    dt_mutate(day = weekdays(as_date(acpd_data$start)), 
-              hour = as.integer(hour(acpd_data$start))) %>%
+    dt_mutate(day = weekdays(x = as_date(x = acpd_data$start)),
+              hour = as.integer(x = hour(x = acpd_data$start)) %>%
     dt_mutate(crime_type = str_detect(string = description,
                                       pattern ='(DRUNK|DUI|ASSAULT|POSSESSION|SEXUAL|DISORDERLY)')) %>% 
-    dt_filter(crime_type) %>% dt_select(-crime_type) %>%
-      ## Create indicator party time = THURS-SUN 9PM-5AM (21:24, 1:5) but also include Cinco de Mayo and St. Patricks Day
+    dt_filter(crime_type) %>% 
+    dt_select(-crime_type) %>%
+    ## Create indicator party time = THURS-SUN 9PM-5AM (21:24, 1:5) but also include Cinco de Mayo and St. Patricks Day
     dt_mutate(crime_cat = map_chr(.x = description,
                                   .f = category_parser) %>%
                 as.factor()) %>% dt_filter(crime_cat != "Other") %>% 
