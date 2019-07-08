@@ -89,29 +89,26 @@ licenses <- dbReadTable(conn = conn,
                         name = "licenses")
 
 geo_data_complete <- geo_data_complete %>%
-  dt_mutate(address = str_to_lower(string = address) %>%
+  dt_mutate(address = str_to_lower(string = Address) %>%
               str_remove_all(pattern = "[\\s+|\\+]"),
-            restaurant = str_to_lower(string = restaurant) %>% 
+            restaurant = str_to_lower(string = Restaurant) %>% 
               str_remove_all(pattern = "\\s+"),
-            geo_key = str_sub(string = address, start = 1L, end = 6L),
-            license_key = str_sub(string = Add1, start = 1L, end = 6L))
+            geo_key = str_sub(string = Address, start = 1L, end = 6L))
 
 licenses <- licenses %>%
   dt_mutate(Add1 = str_to_lower(string= Add1) %>%
               str_remove_all(pattern = "\\s+"),
             TradeName = str_to_lower(string=TradeName) %>%
-              str_remove_all(pattern = "\\s+"))
-
-geo_key = substr(geo_data_complete$address, 1, 6)
-str_sub()
-license_key = substr(licenses$Add1, 1, 6) 
+              str_remove_all(pattern = "\\s+"),
+            license_key = str_sub(string = Add1, start = 1L, end = 6L))
 
 #MAKE UNIQUE KEY COL FOR BOTH DATASETS BEFORE MERGE
 str_c
-geo_data_complete$unique_key <- paste(geo_key,geo_data_complete$restaurant)
-licenses$unique_key <- paste(license_key,licenses$TradeName)
+geo_data_complete$unique_key <- paste(geo_data_complete$geo_key,geo_data_complete$restaurant)
+licenses$unique_key <- paste(licenses$license_key,licenses$TradeName)
 
-licenses <- licenses[c("TradeName","Add1","unique_key","LicStatus_StatusDesc")]
+licenses <- licenses %>%
+  dt_select("TradeName","Add1","unique_key","LicStatus_StatusDesc", "PrivDesc")
 
 
 license_final <- merge(geo_data_complete, licenses, by.x = 'unique_key',by.y = 'unique_key', all.x = TRUE, no.dups = TRUE)
@@ -121,7 +118,7 @@ dbWriteTable(con = conn,
              name = 'vabc_arlington_restaurants',
              value = license_final,
              row.names = FALSE,
-             overwrite = FALSE)
+             overwrite = TRUE)
 
 dbDisconnect(conn = conn)
 
