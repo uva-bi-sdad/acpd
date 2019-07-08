@@ -1,28 +1,35 @@
+
 # Get Crime Data
 
-if (!file.exists("crimes.RDS")) {
+if (file.exists("crimes.RDS")) {
   get_crime = function() {
-    conn = con_db(dbname = 'acpd',
-                  pass = get_my_password())
-    output = dbReadTable(conn = conn,
-                         name = c('clean_acpd_cat_data')) %>%
-      data.table::data.table()
+    conn <- dbConnect(drv = PostgreSQL(),
+                      dbname = "acpd",
+                      host = Sys.getenv("host"),
+                      port = Sys.getenv("port"),
+                      user = Sys.getenv("db_userid"),
+                      password = Sys.getenv("db_pwd"))
+    output <- dbReadTable(conn = conn,
+                         name = 'incidents_filtered') %>%
+      data.table()
     on.exit(dbDisconnect(conn = conn))
     return(value = output)
   }
-  acpd_data <- get_crime()
+  crimes_data <- get_crime()
+  crimes_data$Category <- crimes_data$crime_cat
   
   #saveRDS(crime_hours, "./src/dashboard/crime_hours.RDS")
-  saveRDS(acpd_data, "crimes.RDS")
+  saveRDS(crimes_data, "crimes.RDS")
 }
 
 print("Loading Crimes Data File...")
 crimes_data <- readRDS("crimes.RDS")
 #crimes_data <- readRDS("src/dashboard/crimes.RDS")
 
-make_datatable <- function(crime_type, crimes_data) {
+make_datatable <- function(crime_cat, crimes_data) {
+  #browser()
   data.table::setDT(crimes_data)
-  c <- crimes_data[Category == crime_type, ]
+  c <- crimes_data[Category == crime_cat, ]
   dt <-
     DT::datatable(
       c,
@@ -36,5 +43,5 @@ make_datatable <- function(crime_type, crimes_data) {
     )
   dt
 }
-#make_datatable("DUI", crimes_data)  
+make_datatable("Aggrevated Assault", crimes_data)  
 
