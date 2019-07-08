@@ -157,6 +157,67 @@ abc_violations <- function() {
     }
   on.exit(expr = dbDisconnect(conn = conn))
   }
+crime_incidents()
+```
+
+```{r abc violations, message = FALSE}
+abc_violations <- function() {
+  if (!dir.exists(paths = "data/acpd/original/abc_violations")) {
+    dir.create(path = "data/acpd/original/abc_violations")
+    }
+  urls <- str_c("https://www.abc.virginia.gov/library/enforcement/other-documents/",
+                c("finalboardorders_july2017-june2018.xls",
+                  "fy17-final-board-order-spreadsheet.xlsx",
+                  "finalboardorders_july2015-june2016.xls",
+                  "finalboardorders_july2014-june2015.xls"),
+                "?la=en")
+  periods <- c("2017-07-2018-06.xls",
+               "2016-07-2017-06.xlsx",
+               "2015-07-2016-06.xls",
+               "2014-07-2015-06.xls")
+  destfiles <- here(str_c("data/acpd/original/abc_violations/", periods))
+  for (idx in seq_along(along.with = destfiles)) {
+    if (!file.exists(destfiles[idx])) {
+      download.file(url = urls[idx], destfile = destfiles[idx])
+      }
+    }
+  conn <- dbConnect(drv = PostgreSQL(),
+                    dbname = "acpd",
+                    host = "postgis",
+                    port = "5432L",
+                    user = Sys.getenv("db_userid"),
+                    password = Sys.getenv("db_pwd"))
+  if (!dbExistsTable(conn = conn, name = "abc_violations")) {
+    list.files(path = "data/acpd/original/abc_violations",
+               full.names = TRUE) %>%
+      map_df(.f = function(path) {
+        read_excel(path = path,
+                   col_types = "text",
+                   col_names = c("record_control_number", "name", "license", "address",
+                                 "city", "state", "zip", "charges", "num_of_charges",
+                                 "repeat_abc_offense", "region", "disposition_method",
+                                 "date_violation", "continuance", "date_available_H_and_A",
+                                 "date_heard", "date_decision", "date_disposition",
+                                 "suspension_days", "civil_penalty",
+                                 "mandatory_susp_w_civil_penalty", "probation_months",
+                                 "revoked", "dismissed", "other"),
+                   col_types = c("numeric", "text", "numeric", "text", "text", "text",
+                                 "numeric", "text", "numeric", "text", "text", "text",
+                                 "date", "text", "date", "date", "date", "date",
+                                 "numeric", "numeric", "numeric", "text", "text", "text",
+                                 "text", "skip", "skip", "skip", "skip", "skip", "skip",
+                                 "skip"),
+                   skip = 1L)
+        }) %>%
+      dt_filter(!is.na(x = license)) %>%
+      dt_arrange(license) %>%
+      dbWriteTable(con = conn,
+                   name = 'abc_violations',
+                   value = .,
+                   row.names = FALSE)
+    }
+  on.exit(expr = dbDisconnect(conn = conn))
+  }
 abc_violations()
 ```
 
@@ -200,4 +261,22 @@ ari_restaurants_layer <- function() {
   on.exit(expr = dbDisconnect(conn = conn))
   }
 ari_restaurants_layer()
+```
+
+```{r}
+# census block table
+census_blocks <- function() {
+  conn <- dbConnect(drv = PostgreSQL(),
+                    host = "postgis_1",
+                    dbname = "acpd",
+                    port = 5432L,
+                    user = Sys.getenv("db_userid"),
+                    password = Sys.getenv("db_pwd"))
+  if (!dbExistsTable(conn = conn, name = "arlington_census_blocks")) {
+    st_read(dsn = "https://opendata.arcgis.com/datasets/093fb97eabcc4829b72755a08c1b4766_0.geojson") %>%
+      st_write(dsn = conn, layer = "arlington_census_blocks")
+  }
+  on.exit(expr = dbDisconnect(conn = conn))
+}
+census_blocks()
 ```
