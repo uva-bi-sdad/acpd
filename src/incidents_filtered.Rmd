@@ -64,6 +64,7 @@ refresh_filtered_incidents <- function(){
                     password = Sys.getenv("db_pwd"))
   acpd_data <- dbReadTable(conn = conn,
                            name = 'incidents')
+
   acpd_filtered <- acpd_data %>%
     # create nearby filter field for locations within .5 mile radius of clarendon metro
     dt_mutate(nearby = map2_dbl(.x = longitude,
@@ -84,6 +85,7 @@ refresh_filtered_incidents <- function(){
                              str_detect(string = start,
                                         pattern = "(05-05|05-06|03-17|03-18)$")) &
                           (hour %in% c(1:5,21:24)))  
+
   # write out the output to DB
   dbWriteTable(con = conn,
                name = 'incidents_filtered',
@@ -94,5 +96,3 @@ refresh_filtered_incidents <- function(){
   }
 refresh_filtered_incidents()
 ```
-
-
