@@ -1,11 +1,8 @@
 #========Interactive Dashboard======================
 
-library(shiny)
-library(semantic.dashboard)
-library(shiny.semantic)
-library(ggplot2)
-library(plotly)
-library(leaflet)
+for (pkg in c("RPostgreSQL","DBI","shiny", "semantic.dashboard", "shiny.semantic", "ggplot2", "plotly", "leaflet", "sf", "maditr", "stringr", "DT")) {
+  library(pkg, character.only = TRUE)
+}
 
 ui <- dashboardPage(
   dashboardHeader(color = "blue", title = "Alcohol-Related Crime", inverted = TRUE),
