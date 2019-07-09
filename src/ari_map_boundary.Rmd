@@ -133,9 +133,13 @@ arlington.table <- complete %>%
                                               .f = compute_distance_from_hq_in_km) <= 0.804672) %>%
                   dt_select(-lng)
 arlington.table <- arlington.table[,c('name', 'adr','status','lat','lon','nearby')]
-arlington.table
 
-write.table(arlington.table, '~/acpd/data/acpd/working/ari_boundary_info.csv', sep = ';')
+ari_path <- here("data", "acpd", "working", "ari_boundary_info.csv")
+
+if (!file.exists(ari_path)){
+  write.table(arlington.table, ari_path, sep = ';')
+}
+
 ```
 
 

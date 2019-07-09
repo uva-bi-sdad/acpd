@@ -86,7 +86,7 @@ missing_in_api <- missing_in_api %>%
 geo_data_complete <- rbind(geometry, missing_in_api, fill = TRUE)
 
 licenses <- dbReadTable(conn = conn,
-                        name = "licenses")
+                        name = "abc_licensees")
 
 geo_data_complete <- geo_data_complete %>%
   dt_mutate(address = str_to_lower(string = Address) %>%
