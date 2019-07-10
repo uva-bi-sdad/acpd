@@ -18,7 +18,6 @@ if (!file.exists("crimes.RDS")) {
   crimes_data <- get_crime()
   crimes_data$Category <- crimes_data$crime_category
 
-  #saveRDS(crime_hours, "./src/dashboard/crime_hours.RDS")
   saveRDS(crimes_data, "crimes.RDS")
 }
 
