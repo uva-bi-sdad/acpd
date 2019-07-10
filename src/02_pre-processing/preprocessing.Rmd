@@ -199,6 +199,7 @@ refresh_filtered_incidents <- function() {
                              str_detect(string = start,
                                         pattern = "(05-05|05-06|03-17|03-18)$")) &
                 (hour %in% c(1:5, 21:24))) %>%
+
     dbWriteTable(con = conn,
                  name = 'incidents_filtered',
                  value = .,
