@@ -1,7 +1,7 @@
 
 # Get Crime Data
 
-if (file.exists("crimes.RDS")) {
+if (!file.exists("crimes.RDS")) {
   get_crime = function() {
     conn <- dbConnect(drv = PostgreSQL(),
                       dbname = "acpd",
@@ -18,16 +18,13 @@ if (file.exists("crimes.RDS")) {
   crimes_data <- get_crime()
   crimes_data$Category <- crimes_data$crime_category
 
-  #saveRDS(crime_hours, "./src/dashboard/crime_hours.RDS")
   saveRDS(crimes_data, "crimes.RDS")
 }
 
 print("Loading Crimes Data File...")
 crimes_data <- readRDS("crimes.RDS")
-#crimes_data <- readRDS("src/dashboard/crimes.RDS")
 
 make_datatable <- function(crime_category, crimes_data) {
-  #browser()
   setDT(crimes_data)
   c <- crimes_data[Category == crime_category, ]
   dt <-

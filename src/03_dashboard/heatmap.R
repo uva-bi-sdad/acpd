@@ -1,7 +1,7 @@
 
 # Get Crime Hours
 
-if (file.exists("crime_hours.RDS")) {
+if (!file.exists("crime_hours.RDS")) {
   get_crime = function() {
     conn <- dbConnect(drv = PostgreSQL(),
                       dbname = "acpd",
@@ -22,7 +22,6 @@ if (file.exists("crime_hours.RDS")) {
   acpd_data %>% dt_mutate(year = year(acpd_data$start))
   crime_hours <- acpd_data[, .N, list(hour, type = crime_category, year)]
 
-  #saveRDS(crime_hours, "./src/dashboard/crime_hours.RDS")
   saveRDS(crime_hours, "crime_hours.RDS")
 }
 
