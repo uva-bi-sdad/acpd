@@ -117,15 +117,3 @@ server <- shinyServer(function(input, output, session) {
 })
 
 shinyApp(ui, server)
-
-
-
-
-
-
-
-
-
-
-
-

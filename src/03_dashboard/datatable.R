@@ -5,8 +5,8 @@ if (file.exists("crimes.RDS")) {
   get_crime = function() {
     conn <- dbConnect(drv = PostgreSQL(),
                       dbname = "acpd",
-                      host = Sys.getenv("host"),
-                      port = Sys.getenv("port"),
+                      host = "postgis_1",
+                      port = 5432L,
                       user = Sys.getenv("db_userid"),
                       password = Sys.getenv("db_pwd"))
     output <- dbReadTable(conn = conn,
