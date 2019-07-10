@@ -10,7 +10,7 @@ make_crime_map <- function() {
   crime_years <- c(2015, 2016, 2017, 2018)
 
   get_census_block_year_crime_type_count <- function() {
-    if (!file.exists("map_polys_sf.RDS")) {
+    if (file.exists("map_polys_sf.RDS")) {
       # Get Polygons (CENSUS blocks)
       conn <- dbConnect(drv = PostgreSQL(),
                         dbname = "acpd",

@@ -147,7 +147,7 @@ establishments <- function() {
     dt_mutate(key = trade_name %>%
                 str_remove_all(pattern = "\\s"))
   DBI::dbSendQuery(conn, str_c("TRUNCATE TABLE ", "vabc_arlington_restaurants"))
-  
+
   dbWriteTable(con = conn,
                name = 'vabc_arlington_restaurants',
                value = merge(x = enhanced_ari, y = licenses) %>%
@@ -175,9 +175,9 @@ refresh_filtered_incidents <- function() {
                     dbname = "acpd",
                     user = Sys.getenv(x = "db_userid"),
                     password = Sys.getenv(x = "db_pwd"))
-  
+
   DBI::dbSendQuery(conn, str_c("TRUNCATE TABLE ", "incidents_filtered"))
-  
+
   dbReadTable(conn = conn, name = "police_log") %>%
     data.table() %>%
     dt_mutate(nearby = map2_dbl(.x = longitude,
@@ -199,7 +199,6 @@ refresh_filtered_incidents <- function() {
                              str_detect(string = start,
                                         pattern = "(05-05|05-06|03-17|03-18)$")) &
                 (hour %in% c(1:5, 21:24))) %>%
-  
     dbWriteTable(con = conn,
                  name = 'incidents_filtered',
                  value = .,

@@ -18,6 +18,7 @@ if (!file.exists("crimes.RDS")) {
   crimes_data <- get_crime()
   crimes_data$Category <- crimes_data$crime_category
 
+  #saveRDS(crime_hours, "./src/dashboard/crime_hours.RDS")
   saveRDS(crimes_data, "crimes.RDS")
 }
 
@@ -41,4 +42,3 @@ make_datatable <- function(crime_category, crimes_data) {
   dt
 }
 make_datatable("Aggrevated Assault", crimes_data)
-
