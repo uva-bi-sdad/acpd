@@ -70,18 +70,36 @@ make_crime_map <- function() {
     dt_filter(priv) %>%
     dt_filter(lic_status_status_desc %in% "Active") %>%
     st_as_sf(coords = c("x", "y"))
-  dbDisconnect(conn)
-  pnts_2_sf <- restaurants
+  pnts_2_sf <- restaurants %>% dt_select(key, restaurant, address, ari, ask_angela, geometry) %>% distinct()
 
-  # Prepare Point Dataset for Mapping - Restaurants
-  saveRDS(pnts_2_sf, "map_pnts_2_sf.RDS")
+  skeleton <- expand.grid(address = na.omit(object = unique(x = pnts_2_sf$address)),
+                          year = na.omit(object = unique(x = crime_years))) %>% setDT()
+
+  pnts_2_sf <- merge(pnts_2_sf, skeleton, by = 'address')
+  # bring in violations data and filter to violations in past month
+  violations <- dbReadTable(conn = conn,
+                             name = 'abc_violations') %>% data.table()
+
+  dbDisconnect(conn)
+  violations_by_rest <- violations %>%
+    group_by(year = year(violation_date),licensee_name, physical_address) %>% arrange(physical_address,licensee_name, year) %>%
+    summarise(all_charges  = paste(unique(charges), collapse ="; "), total_charges = sum(number_of_charges))  %>%
+    arrange(physical_address,licensee_name, year, desc(total_charges), all_charges)
+  # violations_complete <- merge(skeleton, violations_by_rest, by.x = c('address', 'year'), by.y = c('physical_address', 'year'), all = TRUE)
+  # violations_complete$total_charges[is.na(violations_complete$total_charges)] <- 0
+  violations_complete <- violations_by_rest %>% data.table() %>% dt_mutate(key = paste(substr(tolower(licensee_name),1,5), substr(tolower(physical_address),1,5)) %>%
+              str_remove_all(pattern = "\\s"))
+
+  pnts_2_sf_violations <- merge(pnts_2_sf, violations_complete, by = c('key','year'), all.x = TRUE,fill = TRUE)
+  pnts_2_sf_violations$total_charges[is.na(pnts_2_sf_violations$total_charges)] <- 0
+  pnts_2_sf_violations <- pnts_2_sf_violations %>% data.table() %>% st_as_sf()
 
   # Prepare Second Point Dataset for Mapping
   within_circle <- function(lon, lat, ctr_pnt = 402.336) {
     distm(x = c(-77.09523, 38.8871),
           y = c(lon, lat)) < ctr_pnt
   }
-  . <- cbind(pnts_2_sf, sf::st_coordinates(pnts_2_sf))
+  . <- cbind(pnts_2_sf_violations, sf::st_coordinates(pnts_2_sf_violations))
   .$in_circle <- mapply(within_circle, .$X, .$Y)
   map_pnts_2_sf <- .
 
@@ -123,6 +141,7 @@ make_crime_map <- function() {
     )
     pal2 <- leaflet::colorFactor(c("gray17", "darkblue"),
                                  map_pnts_2_sf$ari)
+  }
 
     # map
     print("Building Map...")
@@ -142,22 +161,23 @@ make_crime_map <- function() {
           dplyr::filter(map_polys_sf, crime_year == y)[, c(c, "geoid10")]
 
         labels <- lapply(
-          paste("<strong>year:",
+          paste("<strong>Year:</strong>",
                 y,
-                "</strong><br />", "county:",
+                "<br />", "<strong/>County:</strong>",
                 substr(plydt$geoid10, 3, 5),
-                "</strong><br />",
-                "tract:",
+                "<br />",
+                "<strong>Tract:</strong>",
                 substr(plydt$geoid10, 6, 11),
                 "<br />",
-                "block group:",
+                "<strong>Block Group:</strong>",
                 substr(plydt$geoid10, 12, 12),
                 "<br />",
-                "crime type:",
+                "<strong>Crime Type:</strong>",
                 c,
                 "<br />",
-                "measure: count<br />",
-                "value:",
+                "<strong>Measure:</strong> count
+                <br />",
+                "<strong>Value:</strong>",
                 plydt[, c][[1]]
           ),
           htmltools::HTML
@@ -187,10 +207,10 @@ make_crime_map <- function() {
 
         labels <- lapply(
           paste(
-            "<strong>crime description:",
+            "<strong>Crime Description:</strong>",
             pnt_dt$description,
-            "</strong><br />",
-            "crime date:",
+            "<br />",
+            "<strong>Crime Timestamp:</strong>",
             pnt_dt$start,
             "<br />"
           ),
@@ -225,19 +245,6 @@ make_crime_map <- function() {
       options = leaflet::pathOptions(pane = "under_places")
     )
 
-    # add second points data layer
-    # m <- leaflet::addCircleMarkers(
-    #   m,
-    #   #data = map_pnts_2_sf[map_pnts_2_sf$in_circle == T,],
-    #   data = map_pnts_2_sf,
-    #   color = ~ pal2(ARI),
-    #   radius = 8,
-    #   fillOpacity = .7,
-    #   label = ~ as.character(trade_name),
-    #   group = "restaurants",
-    #   options = leaflet::pathOptions(pane = "places")
-    # )
-
     print("Adding Marker Layers...")
     ari_tf <- map_pnts_2_sf$ari
     getColor <- function(aritf) {
@@ -254,16 +261,38 @@ make_crime_map <- function() {
                                    library = 'fa',
                                    markerColor = getColor(ari_tf))
 
+
+  for (x in crime_years){
+    data <- map_pnts_2_sf %>% dt_filter(year == x)
+
+    rest_label <- lapply(
+      paste(
+        "<strong>Restaurant:</strong>",
+        data$restaurant,
+        "<br />",
+        "<strong>Ask Angela:</strong>",
+        data$ask_angela,
+        "<br />",
+        "<strong>Total Charges:</strong>",
+        data$total_charges,
+        "<br />",
+        "<strong>Charges Types:</strong>",
+        data$all_charges
+      ),
+      htmltools::HTML
+    )
+
     m <- leaflet::addAwesomeMarkers(
       m,
       data = map_pnts_2_sf,
       group = "restaurants",
       icon = icons,
-      label = ~ as.character(restaurant),
+      label = rest_label,
       options = leaflet::pathOptions(pane = "places")
     )
+    }
 
-    # make group names
+  #  make group names
     if (exists("cys"))
       rm(cys)
     for (c in crime_types) {
@@ -276,6 +305,7 @@ make_crime_map <- function() {
       }
     }
 
+
     # add Layer Control
     print("Building Controls...")
     m <- leaflet::addLayersControl(
@@ -285,9 +315,31 @@ make_crime_map <- function() {
       options = leaflet::layersControlOptions(collapsed = TRUE)
     )
 
+    # m <- leaflet::addControl(
+    #   m,
+    #   baseGroups = crime_years,
+    #   overlayGroups = c("restaurants", "study_circle"),
+    #   options = leaflet::layersControlOptions(collapsed = TRUE)
+    # )
+
+    # m <- addControl(m,
+    #            html = crime_years,
+    #            position = "bottomright"
+    #            # layerId = NULL, className = "info legend",
+    #            # data = getMapData(map)
+    #            )
+
+    # m <-leaflet::addLayersControl(
+    #   m,
+    #   baseGroups = crime_types,
+    #   overlayGroups = c("restaurants", "study_circle"),
+    #   options = leaflet::layersControlOptions(collapsed = TRUE)
+    # )
+
+    # m <- leaflet::showGroup(m, crime_years[1])
     m <- leaflet::showGroup(m, cys[1])
 
-    # add Legend
+        # add Legend
     m <- leaflet::addLegend(
       m,
       position = "topleft",
@@ -297,7 +349,6 @@ make_crime_map <- function() {
       opacity = 1
     )
     saveRDS(m, "m.RDS")
-  }
 
   m <- readRDS("m.RDS")
   print("Launching Map...")

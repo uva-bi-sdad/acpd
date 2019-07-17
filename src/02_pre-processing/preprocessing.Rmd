@@ -140,11 +140,10 @@ establishments <- function() {
                             false = ari))
   # Create common key
   enhanced_ari <- enhanced_ari %>%
-    dt_mutate(key = restaurant %>%
-                str_to_upper() %>%
+    dt_mutate(key = paste(substr(tolower(restaurant),1,5), substr(tolower(address),1,5)) %>% 
                 str_remove_all(pattern = "\\s"))
   licenses <- licenses %>%
-    dt_mutate(key = trade_name %>%
+    dt_mutate(key = paste(substr(tolower(trade_name),1,5), substr(tolower(add1),1,5)) %>%
                 str_remove_all(pattern = "\\s"))
   DBI::dbSendQuery(conn, str_c("TRUNCATE TABLE ", "vabc_arlington_restaurants"))
 
