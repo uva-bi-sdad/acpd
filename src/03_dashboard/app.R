@@ -51,6 +51,24 @@ ui <- dashboardPage(
       tabItem(
         tabName = "map",
         fluidRow(
+          box(width = 4,
+              title = "Crime Type",
+              color = "red",
+              dropdown("type",
+                       choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
+                       choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
+                       default_text = "Select",
+                       value = "DUI")
+              ),
+              box(width = 4,
+                  title = "Crime Year",
+                  color = "red",
+                  dropdown("year",
+                           choices = c("2018", "2017", "2016","2015", "2014"),
+                           choices_value = c(2018,2017,2016,2015,2014),
+                           default_text = "Select",
+                           value = 2018)
+                  ),
           box(width = 16,
               title = "Arlington Crime Map",
               color = "red",
@@ -105,7 +123,7 @@ server <- shinyServer(function(input, output, session) {
   source("heatmap.R")
   source("datatable.R")
 
-  output$map <- renderLeaflet(make_crime_map())
+  output$map <- renderLeaflet(make_crime_map(input$type,input$year))
 
   observeEvent(input$dd1, {
     output$crimesdata <- renderDT(make_datatable(input$dd1, crimes_data))
