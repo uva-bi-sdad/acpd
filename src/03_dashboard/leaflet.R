@@ -1,6 +1,6 @@
 make_crime_map <- function(crime_type) {
   crime_tp <- crime_type
-  crime_years <- crime_years <- c(2015, 2016, 2017, 2018)
+  crime_years <- c(2015, 2016, 2017, 2018)
 
   get_census_block_year_crime_type_count <- function() {
     if (!file.exists("map_polys_sf.RDS")) {
@@ -18,7 +18,6 @@ make_crime_map <- function(crime_type) {
         dt_select(id, start, crime_category, nearby, day, hour, nightlife, longitude, latitude) %>%
         dt_mutate(crime_year = year(x = start)) %>%
         dt_filter(crime_category == crime_tp) %>%
-        setnames(old = "crime_category", new = "crime_categoryegories") %>%
         st_as_sf(coords = c("longitude", "latitude")) %>%
         st_set_crs(value = st_crs(x = census_blocks))
       dbDisconnect(conn)
@@ -26,17 +25,17 @@ make_crime_map <- function(crime_type) {
                               na.omit(object = unique(x = police_incidents$crime_year)),
                               na.omit(object = unique(x = police_incidents$crime_categoryegories))) %>%
         data.table() %>%
-        setNames(nm = c("geoid10", "crime_year", "crime_categoryegories"))
+        setNames(nm = c("geoid10", "crime_year", "crime_category"))
       st_join(x = census_blocks,
               y = police_incidents) %>%
-        dt_select(fullblockid, crime_year, crime_categoryegories, id) %>%
+        dt_select(fullblockid, crime_year, crime_category, id) %>%
         setnames(old = "fullblockid", new = "geoid10") %>%
         merge(y = skeleton, all.y = TRUE) %>%
         dt_mutate(count := sum(x = !is.na(x = id)),
-                  by = c("geoid10", "crime_year", "crime_categoryegories")) %>%
-        dt_select("geoid10", "crime_year", "crime_categoryegories", "count") %>%
+                  by = c("geoid10", "crime_year", "crime_category")) %>%
+        dt_select("geoid10", "crime_year", "crime_category", "count") %>%
         unique() %>%
-       dcast(geoid10 + crime_year ~ crime_categoryegories, value.var = "count") %>%
+       dcast(geoid10 + crime_year ~ crime_category, value.var = "count") %>%
         merge(y = census_blocks %>%
                 dt_select(fullblockid, geometry) %>%
                 setnames(old = "fullblockid", new = "geoid10"),
@@ -66,10 +65,10 @@ make_crime_map <- function(crime_type) {
     st_as_sf(coords = c("x", "y"))
   pnts_2_sf <- restaurants %>% dt_select(key, restaurant, address, ari, ask_angela, geometry) %>% distinct()
 
-  # skeleton <- expand.grid(address = na.omit(object = unique(x = pnts_2_sf$address)),
-  #                         year = na.omit(object = unique(x = crime_years))) %>% setDT()
-  #
-  # pnts_2_sf <- merge(pnts_2_sf, skeleton, by = 'address')
+  skeleton <- expand.grid(address = na.omit(object = unique(x = pnts_2_sf$address)),
+                          year = na.omit(object = unique(x = crime_years))) %>% setDT()
+
+  pnts_2_sf <- merge(pnts_2_sf, skeleton, by = 'address')
   # bring in violations data and filter to violations in past month
   violations <- dbReadTable(conn = conn,
                              name = 'abc_violations') %>% data.table()
@@ -86,7 +85,6 @@ make_crime_map <- function(crime_type) {
 
   pnts_2_sf_violations <- merge(pnts_2_sf, violations_complete, by = 'key', all.x = TRUE,fill = TRUE)
   pnts_2_sf_violations$total_charges[is.na(pnts_2_sf_violations$total_charges)] <- 0
-  pnts_2_sf_violations$year[is.na(pnts_2_sf_violations$year)] <- crime_yr
   pnts_2_sf_violations <- pnts_2_sf_violations %>% data.table() %>% st_as_sf()
 
   # Prepare Second Point Dataset for Mapping
@@ -253,7 +251,7 @@ make_crime_map <- function(crime_type) {
 
     # add restaurant tooltips
     for (c in crime_years) {
-    data <- map_pnts_2_sf %>% filter(year == c)
+    data <- map_pnts_2_sf[year = c,]
 
     rest_label <- lapply(
       paste(
@@ -297,7 +295,7 @@ make_crime_map <- function(crime_type) {
 
 
     # add Layer Control
-    # print("Building Controls...")
+    print("Building Controls...")
     m <- leaflet::addLayersControl(
       m,
       baseGroups = crime_years,
@@ -306,7 +304,6 @@ make_crime_map <- function(crime_type) {
     )
 
     m <- leaflet::showGroup(m, crime_years[1])
-    # m <- leaflet::showGroup(m, cys[1])
 
         # add Legend
     m <- leaflet::addLegend(
