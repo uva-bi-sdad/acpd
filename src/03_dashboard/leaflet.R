@@ -63,7 +63,7 @@ make_crime_map <- function(crime_type) {
     dt_filter(priv) %>%
     dt_filter(lic_status_status_desc %in% "Active") %>%
     st_as_sf(coords = c("x", "y"))
-  pnts_2_sf <- restaurants %>% dt_select(key, restaurant, address, ari, ask_angela, geometry) %>% distinct()
+  pnts_2_sf <- restaurants %>% dt_select(key, restaurant, address, ari, ask_angela, geometry) %>% distinct(.keep_all = T)
 
   skeleton <- expand.grid(address = na.omit(object = unique(x = pnts_2_sf$address)),
                           year = na.omit(object = unique(x = crime_years))) %>% setDT()
@@ -129,7 +129,7 @@ make_crime_map <- function(crime_type) {
     # color palette function
     pal <- leaflet::colorBin(
       palette = "viridis",
-      bins = c(0, 3, 6, 12, 24, 48),
+      bins = c(0, 2, 4, 6, 8,10,12, 14, 16),
       reverse = TRUE
     )
     pal2 <- leaflet::colorFactor(c("gray17", "darkblue"),
@@ -154,7 +154,7 @@ make_crime_map <- function(crime_type) {
 
         labels <- lapply(
           paste("<strong>Year:</strong>",
-                y,
+                c,
                 "<br />", "<strong/>County:</strong>",
                 substr(plydt$geoid10, 3, 5),
                 "<br />",
@@ -165,7 +165,7 @@ make_crime_map <- function(crime_type) {
                 substr(plydt$geoid10, 12, 12),
                 "<br />",
                 "<strong>Crime Type:</strong>",
-                c,
+                crime_tp,
                 "<br />",
                 "<strong>Measure:</strong> count
                 <br />",
@@ -181,10 +181,10 @@ make_crime_map <- function(crime_type) {
           weight = .8,
           color = "Black",
           smoothFactor = 0.2,
-          fillOpacity = .6,
+          fillOpacity = .3,
           fillColor = ~ pal(get(crime_tp)),
           label = labels,
-          group = paste(crime_tp, crime_yr),
+          group = as.character(c),
           options = leaflet::pathOptions(pane = "base_layers")
         )
    }
@@ -212,26 +212,12 @@ make_crime_map <- function(crime_type) {
           label = labels,
           radius = 3,
           color = "black",
-          group = paste(crime_tp, crime_yr),
+          group = as.character(c),
           clusterOptions = leaflet::markerClusterOptions(),
           options = leaflet::pathOptions(pane = "places")
         )
     }
 
-    # add study circle
-    m <- leaflet::addCircles(
-      m,
-      lng = -77.09523,
-      lat = 38.8871,
-      weight = 5,
-      stroke = TRUE,
-      color = "Black",
-      fillColor = "Black",
-      fillOpacity = .1,
-      radius = 402.336,
-      group = "study circle",
-      options = leaflet::pathOptions(pane = "under_places")
-    )
 
     print("Adding Marker Layers...")
     ari_tf <- map_pnts_2_sf$ari
@@ -272,8 +258,8 @@ make_crime_map <- function(crime_type) {
 
     m <- leaflet::addAwesomeMarkers(
       m,
-      data = map_pnts_2_sf,
-      group = "restaurants",
+      data = map_pnts_2_sf[year = c,],
+      group = as.character(c),
       icon = icons,
       label = rest_label,
       options = leaflet::pathOptions(pane = "places")
@@ -293,17 +279,34 @@ make_crime_map <- function(crime_type) {
     #   }
     # }
 
+    # add study circle
+    m <- leaflet::addCircles(
+      m,
+      lng = -77.09523,
+      lat = 38.8871,
+      weight = 5,
+      stroke = TRUE,
+      color = "Black",
+      fillColor = "Black",
+      fillOpacity = 0.5,
+      radius = 402.336,
+      group = "study circle",
+      options = leaflet::pathOptions(pane = "under_places")
+    )
+
 
     # add Layer Control
     print("Building Controls...")
     m <- leaflet::addLayersControl(
       m,
-      baseGroups = crime_years,
+      baseGroups = as.character(crime_years),
       overlayGroups = c("restaurants", "study circle"),
       options = leaflet::layersControlOptions(collapsed = TRUE)
     )
 
-    m <- leaflet::showGroup(m, crime_years[1])
+  m <- leaflet::showGroup(m, as.character(crime_years)[1])
+
+
 
         # add Legend
     m <- leaflet::addLegend(
