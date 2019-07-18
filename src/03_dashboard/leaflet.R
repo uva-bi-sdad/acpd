@@ -241,6 +241,9 @@ make_crime_map <- function(crime_type) {
 
     rest_label <- lapply(
       paste(
+        "<strong>Year:</strong>",
+        data$year.x,
+
         "<strong>Restaurant:</strong>",
         data$restaurant,
         "<br />",
