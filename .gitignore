@@ -17,6 +17,7 @@ data/*
 *.[pP][dD][fF]
 *.[xX][lL][sS]
 *.[xX][lL][sS][xX]
+*.[rR][dD][sS]
 
 # https://github.com/github/gitignore/blob/master/R.gitignore
 
