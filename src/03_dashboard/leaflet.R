@@ -293,11 +293,12 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     #map_pnts_2_sf[year = c,]
 
     rest_label <- lapply(
-      paste(
+      paste("<strong>Year</strong>",
         data$year,
-        "<br>",
+        "<br />",
         "<strong>Address:</strong>",
         data$address,
+        "<br />",
         "<strong>Restaurant:</strong>",
         data$restaurant,
         "<br />",
