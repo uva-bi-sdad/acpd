@@ -37,16 +37,16 @@ ui <- dashboardPage(
               HTML("<figure>"),
               img(src="ARI_circle.png", style="display: block; margin-left: auto; margin-right: auto;"),
               HTML("<figcaption>
-                    <br />Clarendon has over 40 restaurants (pinned in blue circles) with ABC (Alcohol and Beverage Control) licenses and an average of 5,500 patrons per weekend night. Each year, approximately 580,00 patrons visit Clarendon between 21:00 and 03:00, especially during holidays and special ”drinking” events. Alcohol-related crime counts in Clarendon on Friday, Saturday, and Sunday between 21:00 and 03:00 for 2015-2017 are given in yellow and green circles.
-                    </figcaption>
+                   <br />Clarendon has over 40 restaurants (pinned in blue circles) with ABC (Alcohol and Beverage Control) licenses and an average of 5,500 patrons per weekend night. Each year, approximately 580,00 patrons visit Clarendon between 21:00 and 03:00, especially during holidays and special ”drinking” events. Alcohol-related crime counts in Clarendon on Friday, Saturday, and Sunday between 21:00 and 03:00 for 2015-2017 are given in yellow and green circles.
+                   </figcaption>
                    </figure>"),
               h3("Research Team"),
               div("DSPG: Victoria Halewicz, and Kateryna Savchyn (DSPG Fellow)"),
               div("SDAL: Gizem Korkmaz, Aaron Schroeder, and José Bayoán Santiago Calderón"),
               div("Sponsors: Jim Mastoras, Arlington County Police Department")
+              )
           )
-        )
-      ),
+        ),
 
       tabItem(
         tabName = "map",
@@ -58,8 +58,8 @@ ui <- dashboardPage(
                        choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
                        choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
                        default_text = "Select",
-                       value = "DUI")
-              ),
+                       value = "Drunkenness")
+          ),
           box(width = 16,
               title = "Arlington Crime Map",
               color = "red",
@@ -107,7 +107,7 @@ ui <- dashboardPage(
       )
     )
   ), theme = "cerulean"
-)
+  )
 #=================Crime Type Drop Down==========================
 server <- shinyServer(function(input, output, session) {
   source("leaflet.R")
