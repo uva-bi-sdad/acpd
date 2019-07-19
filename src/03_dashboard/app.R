@@ -5,7 +5,7 @@ if (!("pacman" %in% installed.packages()[,1])) {
 }
 pacman::p_load(RPostgreSQL, tidyverse, maditr, sf, geosphere,
                semantic.dashboard, shiny.semantic,
-               leaflet, plotly, DT)
+               leaflet, plotly, DT, here)
 
 ui <- dashboardPage(
   dashboardHeader(color = "blue", title = "Alcohol-Related Crime", inverted = TRUE),
