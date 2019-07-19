@@ -243,7 +243,7 @@ make_crime_map <- function(crime_type) {
       paste(
         "<strong>Year:</strong>",
         data$year.x,
-
+        "<br />",
         "<strong>Restaurant:</strong>",
         data$restaurant,
         "<br />",
@@ -308,7 +308,6 @@ make_crime_map <- function(crime_type) {
     )
 
   m <- leaflet::showGroup(m, as.character(crime_years)[1])
-
 
 
         # add Legend
