@@ -155,7 +155,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
 
   if (!exists("pnts_sf")) pnts_sf <- readRDS("map_pnts_sf.RDS")
   map_pnts_sf <- dplyr::filter(pnts_sf, crime_category == crime_tp)
-browser()
+
   if (!exists("pnts_2_sf")) pnts_2_sf <- readRDS("map_pnts_2_sf.RDS")
   map_pnts_2_sf <- pnts_2_sf
 
