@@ -1,4 +1,5 @@
 make_crime_map <- function(crime_type = "Drunkenness") {
+  setwd('~/acpd/src/03_dashboard')
   crime_tp <- crime_type
   crime_years <- c(2015, 2016, 2017, 2018)
 
@@ -93,7 +94,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     violations_complete <- violations_by_rest %>% data.table() %>% dt_mutate(key = paste(substr(tolower(licensee_name),1,5), substr(tolower(physical_address),1,5)) %>%
                                                                                str_remove_all(pattern = "\\s"))
 
-    pnts_2_sf_violations <- merge(pnts_2_sf, violations_complete, by = 'key', all.x = TRUE,fill = TRUE)
+    pnts_2_sf_violations <- merge(pnts_2_sf, violations_complete, by = c('key', 'year'), all.x = TRUE,fill = TRUE)
     pnts_2_sf_violations$total_charges[is.na(pnts_2_sf_violations$total_charges)] <- 0
     pnts_2_sf_violations <- pnts_2_sf_violations %>% data.table() %>% st_as_sf()
 
@@ -106,7 +107,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     . <- cbind(pnts_2_sf_violations, sf::st_coordinates(pnts_2_sf_violations))
     .$in_circle <- mapply(within_circle, .$X, .$Y)
     map_pnts_2_sf <- .
-    colnames(map_pnts_2_sf)[colnames(map_pnts_2_sf)=="year.x"] <- "year"
+   # colnames(map_pnts_2_sf)[colnames(map_pnts_2_sf)=="year.x"] <- "year"
     saveRDS(map_pnts_2_sf, "map_pnts_2_sf.RDS")
   }
 
@@ -152,20 +153,18 @@ make_crime_map <- function(crime_type = "Drunkenness") {
   print("Loading Data Files for Mapping...")
   if (!exists("polys_sf")) polys_sf <- readRDS("map_polys_sf.RDS")
   map_polys_sf <- dplyr::filter(polys_sf, eval(parse(text=make.names(crime_tp))) > 0)
-
   if (!exists("pnts_sf")) pnts_sf <- readRDS("map_pnts_sf.RDS")
   map_pnts_sf <- dplyr::filter(pnts_sf, crime_category == crime_tp)
-browser()
-  if (!exists("pnts_2_sf_2")) pnts_2_sf_2 <- readRDS("map_pnts_2_sf.RDS")
-  map_pnts_2_sf <- pnts_2_sf_2
-
+#  if (!exists("pnts_2_sf_2")) pnts_2_sf_2 <- readRDS("map_pnts_2_sf.RDS")
+#  map_pnts_2_sf <- pnts_2_sf_2
+  map_pnts_2_sf <- readRDS("map_pnts_2_sf.RDS")
 
   if (TRUE) {
     # Map Polygons and Points
     # color palette function
     pal <- leaflet::colorBin(
       palette = "viridis",
-      bins = c(0, 3, 6, 12, 24, 48),
+      bins = c(0, 2,4,6,8,10,12,14),
       reverse = TRUE
     )
     pal2 <- leaflet::colorFactor(c("gray17", "darkblue"),
@@ -296,6 +295,9 @@ browser()
     rest_label <- lapply(
       paste(
         data$year,
+        "<br>",
+        "<strong>Address:</strong>",
+        data$address,
         "<strong>Restaurant:</strong>",
         data$restaurant,
         "<br />",
