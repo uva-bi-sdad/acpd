@@ -106,7 +106,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     . <- cbind(pnts_2_sf_violations, sf::st_coordinates(pnts_2_sf_violations))
     .$in_circle <- mapply(within_circle, .$X, .$Y)
     map_pnts_2_sf <- .
-
+    colnames(map_pnts_2_sf)[colnames(map_pnts_2_sf)=="year.x"] <- "year"
     saveRDS(map_pnts_2_sf, "map_pnts_2_sf.RDS")
   }
 
@@ -155,9 +155,9 @@ make_crime_map <- function(crime_type = "Drunkenness") {
 
   if (!exists("pnts_sf")) pnts_sf <- readRDS("map_pnts_sf.RDS")
   map_pnts_sf <- dplyr::filter(pnts_sf, crime_category == crime_tp)
-
-  if (!exists("pnts_2_sf")) pnts_2_sf <- readRDS("map_pnts_2_sf.RDS")
-  map_pnts_2_sf <- pnts_2_sf
+browser()
+  if (!exists("pnts_2_sf_2")) pnts_2_sf_2 <- readRDS("map_pnts_2_sf.RDS")
+  map_pnts_2_sf <- pnts_2_sf_2
 
 
   if (TRUE) {
@@ -290,10 +290,12 @@ make_crime_map <- function(crime_type = "Drunkenness") {
 
   # add restaurant tooltips
   for (c in crime_years) {
-    data <- map_pnts_2_sf[year = c,]
+    data <- dplyr::filter(map_pnts_2_sf, year == c)
+    #map_pnts_2_sf[year = c,]
 
     rest_label <- lapply(
       paste(
+        data$year,
         "<strong>Restaurant:</strong>",
         data$restaurant,
         "<br />",
