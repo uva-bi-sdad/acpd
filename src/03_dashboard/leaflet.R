@@ -107,7 +107,6 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     . <- cbind(pnts_2_sf_violations, sf::st_coordinates(pnts_2_sf_violations))
     .$in_circle <- mapply(within_circle, .$X, .$Y)
     map_pnts_2_sf <- .
-   # colnames(map_pnts_2_sf)[colnames(map_pnts_2_sf)=="year.x"] <- "year"
     saveRDS(map_pnts_2_sf, "map_pnts_2_sf.RDS")
   }
 
@@ -151,19 +150,19 @@ make_crime_map <- function(crime_type = "Drunkenness") {
 
   # CREATE DATASETS FOR MAPPING
   print("Loading Data Files for Mapping...")
-  if (!exists("polys_sf")) polys_sf <- readRDS("map_polys_sf.RDS")
-  map_polys_sf <- dplyr::filter(polys_sf, eval(parse(text=make.names(crime_tp))) > 0)
-  if (!exists("pnts_sf")) pnts_sf <- readRDS("map_pnts_sf.RDS")
-  map_pnts_sf <- dplyr::filter(pnts_sf, crime_category == crime_tp)
- if (!exists("pnts_2_sf_2")) pnts_2_sf_2 <- readRDS("map_pnts_2_sf.RDS")
- map_pnts_2_sf <- pnts_2_sf_2
+  if (!exists("polys_sf")) polys_sf <- readRDS("map_polys_sf.RDS") %>% data.table()
+  map_polys_sf <- polys_sf %>% dt_filter(make.names(crime_tp) > 0) %>% st_as_sf()
+  if (!exists("pnts_sf")) pnts_sf <- readRDS("map_pnts_sf.RDS")  %>% data.table()
+  map_pnts_sf <- pnts_sf %>% dt_filter(crime_category == crime_tp) %>% st_as_sf()
+  if (!exists("pnts_2_sf_2")) pnts_2_sf_2 <- readRDS("map_pnts_2_sf.RDS")  %>% data.table() %>% st_as_sf()
+  map_pnts_2_sf <- pnts_2_sf_2
 
   if (TRUE) {
     # Map Polygons and Points
     # color palette function
     pal <- leaflet::colorBin(
       palette = "viridis",
-      bins = c(0, 2,4,6,8,10,12,14),
+      bins = c(0, 2,4,6,8,10,12,14,18),
       reverse = TRUE
     )
     pal2 <- leaflet::colorFactor(c("gray17", "darkblue"),
@@ -183,13 +182,15 @@ make_crime_map <- function(crime_type = "Drunkenness") {
   # add polygon data layers
   print("Adding Polygon Layers...")
   for (c in crime_years) {
-    plydt <-
-      dplyr::filter(map_polys_sf, crime_year == c)[, c(make.names(crime_tp), "geoid10")]
+    plydt <- map_polys_sf %>% data.table() %>% dt_filter(crime_year == c) %>% st_as_sf()
 
     labels <- lapply(
-      paste("<strong>Year:</strong>",
+      paste(
+
+        "<strong>Year:</strong>",
             c,
-            "<br />", "<strong/>County:</strong>",
+            "<br />",
+            "<strong/>County:</strong>",
             substr(plydt$geoid10, 3, 5),
             "<br />",
             "<strong>Tract:</strong>",
@@ -204,7 +205,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
             "<strong>Measure:</strong> count
             <br />",
             "<strong>Value:</strong>",
-            plydt[, make.names(crime_tp)][[1]]
+            plydt[,make.names(crime_tp)][[1]]
       ),
       htmltools::HTML
     )
@@ -215,7 +216,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
       weight = .8,
       color = "Black",
       smoothFactor = 0.2,
-      fillOpacity = .6,
+      fillOpacity = .8,
       fillColor = ~ pal(get(make.names(crime_tp))),
       label = labels,
       group = as.character(c),
@@ -226,9 +227,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
   # add point data layers
   print("Adding Point Layers...")
   for (c in crime_years) {
-    pnt_dt <-
-      dplyr::filter(map_pnts_sf, crime_year == c & crime_category == crime_tp)
-    #pnt_dt <- map_pnts_sf[year = c,]
+    pnt_dt <- dplyr::filter(map_pnts_sf, crime_year == c & crime_category == crime_tp)
 
     labels <- lapply(
       paste(
@@ -289,10 +288,9 @@ make_crime_map <- function(crime_type = "Drunkenness") {
   # add restaurant tooltips
   for (c in crime_years) {
     data <- dplyr::filter(map_pnts_2_sf, year == c)
-    #map_pnts_2_sf[year = c,]
 
     rest_label <- lapply(
-      paste("<strong>Year</strong>",
+      paste("<strong>Year:</strong>",
         data$year,
         "<br />",
         "<strong>Address:</strong>",
@@ -333,14 +331,14 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     options = leaflet::layersControlOptions(collapsed = F)
   )
 
-  #m <- leaflet::showGroup(m, crime_years[1])
+  m <- leaflet::showGroup(m, crime_years[1])
 
   # add Legend
   m <- leaflet::addLegend(
     m,
     position = "topleft",
     pal = pal,
-    values = c(0, 3, 6, 12, 24, 48),
+    values = c(0, 2,4, 6,8,10, 12, 14,16, 18),
     title = "Crime Count",
     opacity = 1
   )
