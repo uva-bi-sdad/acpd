@@ -1,0 +1,45 @@
+---
+title: "Similarity_Indexing"
+author: "Kateryna Savchyn"
+date: "7/22/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Bring In Data + Clean
+
+```{r packages, message=FALSE}
+library(here)
+library(readxl)
+library(maditr)
+library(tidyr)
+library(stringr)
+library(dplyr)
+library(hutils)
+```
+
+```{r sim data}
+dat <- here('data', 'acpd', 'Similarity Matrix', 'similaritymatrix.xlsx')
+sim <- read_excel(dat) 
+# break list of categories into multiple columns
+sim$Category_ns <- ''
+sim$Category_ns <- str_trim(sim$Category) 
+cats <- paste(sim$Category_ns, collapse=',' )
+uniq_cats <- unique(unlist(strsplit(cats, ","))) %>% str_trim()
+
+sim_sep <- separate(sim, col = Category_ns,into = uniq_cats, sep = ',', remove = FALSE) %>% data.table()
+sim_n <- drop_empty_cols(sim_sep)
+# dcast the 3 cols (prob rename them first)
+sim1 <- dcast(sim_n, Restaurant + Address ~ Cajun/Creole + Sushi Bars + Lounges, function(x) 1, fill = 0)
+
+sim1 <- dcast(sim, Restaurant + Address ~ Category, function(x) 1, fill = 0)
+#filter to cast the yes/no attributes
+sim2 <- merge(sim1, sim, by = c('Restaurant', 'Address')) %>% dt_filter(Yes_No == 'Yes' | Yes_No == 'No')
+# cast the yes/no then merge back with the list of 
+
+
+```
+
