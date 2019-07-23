@@ -19,10 +19,11 @@ library(tidyr)
 library(stringr)
 library(dplyr)
 library(hutils)
+library(philentropy)
 ```
 
 ```{r sim data}
-dat <- here('data', 'acpd', 'Similarity Matrix', 'similaritymatrix.xlsx')
+dat <- here('data', 'acpd', 'Similarity_Matrix', 'similaritymatrix.xlsx')
 sim <- read_excel(dat) 
 # break list of categories into multiple columns
 sim$Category_ns <- ''
@@ -52,13 +53,96 @@ names(sim3)[4] <- "Salad2"
 sim3$Salad_f <- sim3$Salad + sim3$Salad2
 sim3[ ,c('Salad', 'Salad2')] <- list(NULL)
 
+# if sim1 and sim2 share columns, sum them
+overlap = intersect(names(sim1[,3:length(names(sim1))]), names(sim2[,3:length(names(sim2))]))
+
+sim2overlap <- sim2 %>% dt_select(overlap)
+sim1overlap <- sim1 %>% dt_select(overlap)
+
+sim_12 <- sim2overlap + sim1overlap
+sim12_overlap <- cbind(Restaurant = sim1$Restaurant, Address = sim1$Address, sim_12)
+
+sim2_non_overlap <- sim2 %>% dt_select(!names(sim2) %in% overlap)
+# add in columns from sim2 which were not overlapping
+sim12 <- merge(sim12_overlap, sim2_non_overlap, by = c('Restaurant', 'Address'))
+# add in columns from sim1 which were not overlapping
+sim1_non_overlap <- sim1 %>% dt_select(!names(sim1) %in% overlap)
+sim12_final <- merge(sim12, sim1_non_overlap, by = c('Restaurant', 'Address'))
+
+# create overlap between the joined 12 and 3 sets
+overlap2 = intersect(names(sim12_final[,3:length(names(sim12_final))]), names(sim3[,3:length(names(sim3))])) 
+sim123overlap <- sim12_final %>% dt_select(overlap2)
+sim3overlap <- sim3 %>% dt_select(overlap2)
+sim_123 <- sim123overlap + sim3overlap
+sim123_overlap <- cbind(Restaurant = sim1$Restaurant, Address = sim1$Address, sim_123)
+#add in non-overlapping cols from sim3
+sim3_non_overlap <- sim3 %>% dt_select(!names(sim3) %in% overlap2)
+sim123 <- merge(sim123_overlap, sim3_non_overlap, by = c('Restaurant', 'Address'))
+# add in non-overlapping cols from sim12_final
+sim12_f_non_overlapping <- sim12_final %>% dt_select(!names(sim12_final) %in% overlap2)
+sim123_f <- merge(sim123, sim12_f_non_overlapping, by = c('Restaurant', 'Address'))
+names(sim123_f)[12] <- 'drop'
+sim123_f$drop <- NULL
+#identify that these are the categories, not the attributes
+names(sim123_f)[3:length(names(sim123_f))] <- gsub(' ', '', paste(names(sim123_f[,3:length(names(sim123_f))]), '_CAT'))
+```
+
+```{r data manipulation part 2}
+#merge categories back with rest of data
+sim_cat <- sim_n %>% dt_select(Restaurant, Address, Stars, Attributes, Yes_No, Total_Reviews, Friday_Closing_Time, Saturday_Closing_Time)
+sim_cat_comp <- merge(sim_cat, sim123_f, by = c('Restaurant', 'Address'))
+
 #filter to cast the yes/no attributes
-sim_f <- merge(sim1, sim2, by = c('Restaurant', 'Address'))
-sim_f <- merge(sim_f, sim3, by = c('Restaurant', 'Address'))
+yesno <- sim_cat_comp %>% dt_filter(Yes_No == 'Yes' | Yes_No == 'No')
+#cast it
+yesno_cast <- dcast(yesno, Restaurant + Address ~ Attributes + Yes_No, function(x) 1, fill = 0)
+#yesno_cast <- dcast(yesno, Restaurant + Address ~ Attributes + Yes_No, function(x) if(Yes_No == 'Yes') 1 else 0, fill = 0)
+# just take the Yes columns
+yes_cast <- yesno_cast %>% select(grep("Yes", names(yesno_cast)))
+yes_cast <- cbind(Restaurant = yesno_cast$Restaurant, Address = yesno_cast$Address, yes_cast)
 
-%>% dt_filter(Yes_No == 'Yes' | Yes_No == 'No')
-# cast the yes/no then merge back with the list of 
-
+#merge it back with other categories
+yesno_full <- merge(distinct(sim_cat_comp %>% dt_select(-c(Attributes, Yes_No))), yes_cast, by = c('Restaurant', 'Address'))
 
 ```
 
+The below creates a Jaccard dissimilarity matrix based on the binary feature-set, and treats each feature as of equal importance. Compare to more weight assigned to the Category (restaurant type) variables because they are of higher order classification. 
+
+
+```{r similarity}
+# compute euclidean similarity
+binary <- yesno_full[,7:length(names(yesno_full))]
+bin_m <- as.matrix(binary)
+
+# similarity <- distance(bin_m, method = "jaccard")
+sim_df <- as.data.frame(similarity)
+names(sim_df) <- yesno_full$Restaurant
+sim_df$Restaurant <- yesno_full$Restaurant # the lower the score the MORE similar; 0 = identity
+
+#write out raw similarity scores
+put <- here('data', 'acpd', 'Similarity_Matrix', 'raw_similarity_scores.csv')
+write.csv(sim_df, put)
+```
+
+Now try weighing the Category vars as more important because they are higher level tags compared to the attribure-level data. Use daisy from cluster package with gower and weights. G
+
+```{r if we need more features} 
+# not doing this right now because binary jaccard distance was already good
+
+# # cast the non-Yes/No columns seperated by comma - this would create a bunch of new factor vars that we could use daisy(x, metric = c("euclidean", "manhattan", "gower"),...) with 'gower' approach which allows for mixed variables; daisy is from cluster package in R
+# yesno <- sim_cat_comp %>% dt_filter(Yes_No != 'Yes' | Yes_No != 'No')
+# # merge back in with yesno_full
+
+library(cluster)
+sim_d <- daisy(bin_m, metric = 'gower', weights = c(rep.int(3,68), rep.int(1,38)))
+sim_d_m <- as.matrix(sim_d)
+
+sim_d_m_df <- as.data.frame(sim_d_m)
+names(sim_d_m_df) <- yesno_full$Restaurant
+sim_d_m_df$Restaurant <- yesno_full$Restaurant
+```
+
+```{r create data for t-test}
+
+
+```
