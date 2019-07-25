@@ -20,10 +20,11 @@ library(stringr)
 library(dplyr)
 library(hutils)
 library(philentropy)
+library(cluster)
 ```
 
 ```{r sim data}
-dat <- here('data', 'acpd', 'Similarity_Matrix', 'similaritymatrix.xlsx')
+dat <- here('data', 'acpd', 'Similarity_Matrix', 'similaritymatrix_f.xlsx')
 sim <- read_excel(dat) 
 # break list of categories into multiple columns
 sim$Category_ns <- ''
@@ -98,7 +99,7 @@ yesno <- sim_cat_comp %>% dt_filter(Yes_No == 'Yes' | Yes_No == 'No')
 yesno_cast <- dcast(yesno, Restaurant + Address ~ Attributes + Yes_No, function(x) 1, fill = 0)
 #yesno_cast <- dcast(yesno, Restaurant + Address ~ Attributes + Yes_No, function(x) if(Yes_No == 'Yes') 1 else 0, fill = 0)
 # just take the Yes columns
-yes_cast <- yesno_cast %>% select(grep("Yes", names(yesno_cast)))
+yes_cast <- yesno_cast %>% dt_select(grep("Yes", names(yesno_cast)))
 yes_cast <- cbind(Restaurant = yesno_cast$Restaurant, Address = yesno_cast$Address, yes_cast)
 
 #merge it back with other categories
@@ -114,35 +115,83 @@ The below creates a Jaccard dissimilarity matrix based on the binary feature-set
 binary <- yesno_full[,7:length(names(yesno_full))]
 bin_m <- as.matrix(binary)
 
-# similarity <- distance(bin_m, method = "jaccard")
-sim_df <- as.data.frame(similarity)
-names(sim_df) <- yesno_full$Restaurant
-sim_df$Restaurant <- yesno_full$Restaurant # the lower the score the MORE similar; 0 = identity
+sim_jaccard <- distance(bin_m, method = "jaccard") # jaccard
+sim_cos <- distance(bin_m, method = "cosine") # cosine
+sim_gower <- distance(bin_m, method = "gower")# gower
 
-#write out raw similarity scores
+sim_df_jaccard <- as.data.frame(sim_jaccard)
+sim_df_cos <- as.data.frame(sim_cos)
+sim_df_gower <- as.data.frame(sim_gower)
+
+names(sim_df_jaccard) <- yesno_full$Restaurant
+sim_df_jaccard$Restaurant <- yesno_full$Restaurant # the lower the score the MORE similar; 0 = identity
+names(sim_df_cos) <- yesno_full$Restaurant
+sim_df_cos$Restaurant <- yesno_full$Restaurant # the lower the score the MORE similar; 0 = identity
+names(sim_df_gower) <- yesno_full$Restaurant
+sim_df_gower$Restaurant <- yesno_full$Restaurant # the lower the score the MORE similar; 0 = identity
+
+# which(sim_df_jaccard$`Afghan Kabob House` < .5)
+which(sim_df_jaccard$`Courthaus Social` < .4)
+# which(sim_df_cos$`Afghan Kabob House` < .000001)
+# which(sim_df_gower$`Afghan Kabob House` < .09)
+which(sim_df_gower$`Courthaus Social` < .08)
+names(sim_df_jaccard)[23]
+names(sim_df_jaccard)[65]
+names(sim_df_jaccard)[90]
+
+#write out jacc
 put <- here('data', 'acpd', 'Similarity_Matrix', 'raw_similarity_scores.csv')
-write.csv(sim_df, put)
+write.csv(sim_df_jaccard, put)
 ```
 
-Now try weighing the Category vars as more important because they are higher level tags compared to the attribure-level data. Use daisy from cluster package with gower and weights. G
+Now try weighing the Category vars as more important because they are higher level tags compared to the attribure-level data. Use daisy from cluster package with gower and weights. No real changes were observed.
 
-```{r if we need more features} 
-# not doing this right now because binary jaccard distance was already good
-
-# # cast the non-Yes/No columns seperated by comma - this would create a bunch of new factor vars that we could use daisy(x, metric = c("euclidean", "manhattan", "gower"),...) with 'gower' approach which allows for mixed variables; daisy is from cluster package in R
-# yesno <- sim_cat_comp %>% dt_filter(Yes_No != 'Yes' | Yes_No != 'No')
-# # merge back in with yesno_full
-
-library(cluster)
-sim_d <- daisy(bin_m, metric = 'gower', weights = c(rep.int(3,68), rep.int(1,38)))
+```{r weighted gower} 
+sim_d <- daisy(bin_m, weights = c(rep.int(30,68), rep.int(1,38)))
 sim_d_m <- as.matrix(sim_d)
 
 sim_d_m_df <- as.data.frame(sim_d_m)
 names(sim_d_m_df) <- yesno_full$Restaurant
 sim_d_m_df$Restaurant <- yesno_full$Restaurant
+which(sim_d_m_df$`Afghan Kabob House` < 3)
+which(sim_d_m_df$`Courthaus Social` < 3)
 ```
 
-```{r create data for t-test}
 
+```{r data for t-test}
+# use Jaccard similarity; 
+# replace identity matches with high number so we can pull the most similar match per restaurant'
+j_noid <- replace.value(sim_df_jaccard, names(sim_df_jaccard), from=0, to=as.integer(10), verbose = FALSE)
+ARI_list <- c('Baba','Bar Bao','Barley Mac',
+'Bracket Room','Buena Vida Clarendon','Buena Vida Social Club',
+"The Celtic House Irish Pub & Restaurant",'Courthaus Social','Crystal City Sports Pub',
+'Don Tito','Federico Ristorante Italiano',
+'Fiona’s Irish Pub',"Freddie’s Beach Bar & Restaurant",
+"The G.O.A.T",'Ireland’s Four Courts','Lebanese Taverna',
+"The Liberty Tavern","Los Tios Grill", "Lyon Hall", 'Medium Rare','Mexicali Blues',
+'Nam Viet Restaurant',"O’Sullivan’s Irish Pub","Pamplona","Punch Bowl Social Arlington","Ragtime", "Rebellion On The Pike",
+"Rhodeside Grill", "Samuel Beckett’s Irish Gastro Pub",
+"Spirits of ‘76", "The Local Oyster", "TTT Mexican Diner", "Whitlow's On Wilson" , "William Jeffery’s Tavern",
+"Wilson Hardware Kitchen & Bar" )
+
+j_noid_ARI <- j_noid %>% dt_filter(Restaurant %in% ARI_list)
+j_noid_notARI <- j_noid %>% dt_filter(!(Restaurant %in% ARI_list))
+
+most_similar  <- character(length(j_noid_ARI$Restaurant))
+
+for (i in 1:length(j_noid_ARI$Restaurant)){
+  restaurant <- j_noid_ARI$Restaurant[i]
+  min_not_ARI <- which.min(t(j_noid_notARI %>% dt_select(restaurant)))
+  most_similar[i] <- names(j_noid_notARI)[min_not_ARI]
+}
+
+# get most similar that are not in the ARI program
+ari_similarity <- data.frame(Restaurant = j_noid_ARI$Restaurant, Most_Similar = most_similar)
+
+put <- here('data', 'acpd', 'Similarity_Matrix', 'ARI_sim_comparisons.csv')
+write.csv(ari_similarity, put)
 
 ```
+
+
+
