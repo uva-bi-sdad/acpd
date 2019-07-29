@@ -41,4 +41,3 @@ make_datatable <- function(crime_category, crimes_data) {
   dt
 }
 make_datatable("Aggrevated Assault", crimes_data)
-
