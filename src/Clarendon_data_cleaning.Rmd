@@ -26,6 +26,7 @@ head(test2)
 
 clarendon_clean <- test2%>%
   drop_na(Establishment)%>%
+  mutate(day = lubridate::wday(Date, label = TRUE, abbr = FALSE))%>%
   mutate(num_arrests = ifelse(is.na(Num_arrests) == FALSE, Num_arrests,
                               ifelse(`Arrest Type` == "N/A" | `Arrest Type` == "N"| is.na(`Arrest Type`), 0, 1)),
          Num_cfs = ifelse(is.na(as.numeric(Num_cfs)) == FALSE, as.numeric(Num_cfs), 1))%>%
@@ -33,11 +34,10 @@ clarendon_clean <- test2%>%
          Establishment = str_replace(Establishment, "/", ","))%>%
   separate_rows(col = Establishment, sep = ',') %>% 
   separate_rows(col = `Incident Type`, sep = ',')%>%
-  #dt_mutate <- wday(label = TRUE, abbr = FALSE, ordered = FALSE) %>%
-  group_by(Date, Establishment, `Incident Type`)%>%
+  group_by(Date, Establishment, `Incident Type`,day)%>%
+  
   summarize(num_cfs = sum(Num_cfs), num_arrests = sum(num_arrests))
 
-
-
+write.csv(clarendon_clean, 'data/acpd/Clarendon_details/clarendon_clean_01.csv')
 ```
 
