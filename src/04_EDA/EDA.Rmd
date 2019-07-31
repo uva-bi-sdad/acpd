@@ -1,0 +1,64 @@
+---
+title: "EDA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(readr)
+library(dplyr)
+library(magrittr)
+```
+
+Cleaning Restaurant Names
+
+NSS <- NS
+MB (Blues) <- MB
+Bracket <- BR
+Bronx (BX?) <- BP
+
+```{r}
+nightlife_data <- read_csv("~/acpd/data/acpd/Clarendon_details/clarendon_clean_02.csv")
+
+hunan_names <- c("H1", "Hun", "HUN", "HUNAN", "Hunan One", "HU")
+seven11_names <- c("7-11", "711", "Seven 11", "Seven-11", "Seven11")
+
+#nightlife_data <- read_csv("~/acpd/data/acpd/Clarendon_details/clarendon_clean_01.csv")
+nightlife_clean <- nightlife_data %>%
+  mutate(establishment = ifelse(establishment == "Darna", "DARNA",
+                                ifelse(establishment %in% hunan_names, "HUN",
+                                       ifelse(establishment %in% seven11_names, "7-11",
+                                              ifelse(establishment == "NSS", "NS",
+                                                     ifelse(establishment == "MB (Blues)", "MB", 
+                                                            ifelse(establishment == "Bracket", "BR",
+                                                                   ifelse(establishment == "Bronx", "BP",
+                                                                          toupper(establishment)))))))))
+
+
+
+```
+
+```{r}
+ari_restaurants <- read_csv("~/acpd/data/acpd/ari_restaurants.csv")
+
+restaurant_acronyms <- read_excel("~/acpd/data/acpd/original/ARI Nightlife Detail Logs/Restaurant List & Acronyms.xlsx")
+
+
+
+ari_restaurants_2 <- ari_restaurants %>%
+  left_join(restaurant_acronyms, by = c("restaurant" = "Restaurant List & Acronyms"))%>%
+  mutate(ari_accredit = ifelse(restaurant == "Ba Ba" | restaurant == "Buena Vida", as.Date("2019-06-29"),
+                               ifelse(restaurant == "Los Tios", as.Date("2019-06-06"),
+                                      ifelse(restaurant == "Medium Rare", as.Date("2019-06-27"), as.Date(ari_accredit)))),
+         X__1 = ifelse(restaurant == "Medium Rare", "MR",
+                       ifelse(restaurant == "Samuel Beckett's Irish Gastro Pub", "SB", X__1)))%>%
+  select(X__1, ari_accredit)
+
+ari_restaurants_2$ari_accredit <- as.Date(ari_restaurants_2$ari_accredit, origin="1970-01-01")
+
+clarendon_clean_03 <- nightlife_clean %>%
+  left_join(ari_restaurants_2, by = c("establishment" = "X__1"))%>%
+  mutate(accreditation = ifelse(date < ari_accredit | is.na(ari_accredit), 0, 1))
+
+write_csv(clarendon_clean_03, "~/acpd/data/acpd/Clarendon_details/clarendon_clean_03.csv")
+```
