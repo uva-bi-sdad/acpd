@@ -55,8 +55,8 @@ ui <- dashboardPage(
               title = "Crime Type",
               color = "red",
               dropdown("type",
-                       choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
-                       choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
+                       choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape"),
+                       choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape"),
                        default_text = "Select",
                        value = "Drunkenness")
           ),
@@ -74,8 +74,8 @@ ui <- dashboardPage(
               title = "Crime Type",
               color = "red",
               dropdown("dd1",
-                       choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
-                       choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
+                       choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape"),
+                       choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape"),
                        default_text = "Select",
                        value = "DUI")
           ),
@@ -94,8 +94,8 @@ ui <- dashboardPage(
               title = "Heatmap Control",
               color = "red",
               dropdown("dd2",
-                       choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
-                       choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape", "Underage Drinking/Fake ID"),
+                       choices = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape"),
+                       choices_value = c("Aggravated Assault", "Disorderly Conduct", "Drunkenness", "DUI", "Sexual Assault/Rape"),
                        default_text = "Select",
                        value = "Drunkenness")
           ),
