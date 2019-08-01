@@ -24,7 +24,7 @@ library(cluster)
 ```
 
 ```{r sim data}
-dat <- here('data', 'acpd', 'Similarity_Matrix', 'similaritymatrix_f.xlsx')
+dat <- here::here('data', 'acpd', 'Similarity_Matrix', 'similaritymatrix_f.xlsx')
 sim <- read_excel(dat) 
 # break list of categories into multiple columns
 sim$Category_ns <- ''
@@ -86,7 +86,95 @@ names(sim123_f)[12] <- 'drop'
 sim123_f$drop <- NULL
 #identify that these are the categories, not the attributes
 names(sim123_f)[3:length(names(sim123_f))] <- gsub(' ', '', paste(names(sim123_f[,3:length(names(sim123_f))]), '_CAT'))
+
+### Run through the names function to standardize the names
+ari_names <- function(rest_name) {
+  if (str_detect(string = rest_name,
+                 pattern = "(?i)(Los Tios|Los Tios Grill)")) {
+    "Los Tios"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(ba ba|baba|baba bar|ba ba bar)")) {
+    "BA BA"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(buena|vida)")) {
+    "Buena Vida"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(liberty tavern)")) {
+    "LT"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(bracket|brakett|BR)")) {
+    "BR"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(don tito|DT)")) {
+    "DT"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(GOAT|G\\.O\\.A\\.T\\.|^GT$)")) {
+    "GT"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(freddie)")) {
+    "Freddie's Beach Bar & Restaurant"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(fredrico|federico)")) {
+    "Federico Ristorante Italiano"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(four courts)")) {
+    "Ireland's Four Courts"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(mexicali|^MB$)")) {
+    "MB"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(sullivan)")) {
+    "O'Sullivan's Irish Pub"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(punch bowl|PBS)")) {
+    "PBS"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(rhodeside)")) {
+    "Rhodeside Grill"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(samuel becket)")) {
+    "Samuel Beckett's Irish Gastro Pub"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(celtic)")) {
+    "The Celtic House Irish Pub & Restaurant"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(spirits of|spirit of|76)")) {
+    "76"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(ttt|mexican diner)")) {
+    "TTT"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(whitlow|WT)")) {
+    "WT"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(william jeffrey)")) {
+    "William Jeffrey's Tavern"
+  } else if (str_detect(string = rest_name,
+                        pattern = "(?i)(wilson hardware|wh)")) {
+    "WH"
+  } else {
+    rest_name
+  }
+}
+
+
 ```
+
+```{r standardize names then filter}
+#sim123_f$Restaurant_Standard  <- ari_names(sim123_f$Restaurant)
+
+sim123_f <- sim123_f %>% dt_mutate(Restaurant_Standard = factor(map_chr(.x = Restaurant,
+                                       .f = ari_names)))
+
+d <- here::here('data', 'acpd',  'working', 'ari_restaurants.tsv') %>%
+  fread()
+
+## filter to only the restaurants we care about: 
+sim123_f <- sim123_f[sim123_f$Restaurant_Standard %in% d$restaurant, ]
+
+```
+
+
 
 ```{r data manipulation part 2}
 #merge categories back with rest of data
@@ -97,13 +185,15 @@ sim_cat_comp <- merge(sim_cat, sim123_f, by = c('Restaurant', 'Address'))
 yesno <- sim_cat_comp %>% dt_filter(Yes_No == 'Yes' | Yes_No == 'No')
 #cast it
 yesno_cast <- dcast(yesno, Restaurant + Address ~ Attributes + Yes_No, function(x) 1, fill = 0)
-#yesno_cast <- dcast(yesno, Restaurant + Address ~ Attributes + Yes_No, function(x) if(Yes_No == 'Yes') 1 else 0, fill = 0)
+
 # just take the Yes columns
 yes_cast <- yesno_cast %>% dt_select(grep("Yes", names(yesno_cast)))
 yes_cast <- cbind(Restaurant = yesno_cast$Restaurant, Address = yesno_cast$Address, yes_cast)
 
 #merge it back with other categories
 yesno_full <- merge(distinct(sim_cat_comp %>% dt_select(-c(Attributes, Yes_No))), yes_cast, by = c('Restaurant', 'Address'))
+yesno_full$Restaurant <- yesno_full$Restaurant_Standard
+yesno_full$Restaurant_Standard <- NULL
 
 ```
 
@@ -114,6 +204,7 @@ The below creates a Jaccard dissimilarity matrix based on the binary feature-set
 # compute euclidean similarity
 binary <- yesno_full[,7:length(names(yesno_full))]
 bin_m <- as.matrix(binary)
+
 
 sim_jaccard <- distance(bin_m, method = "jaccard") # jaccard
 sim_cos <- distance(bin_m, method = "cosine") # cosine
@@ -135,12 +226,9 @@ which(sim_df_jaccard$`Courthaus Social` < .4)
 # which(sim_df_cos$`Afghan Kabob House` < .000001)
 # which(sim_df_gower$`Afghan Kabob House` < .09)
 which(sim_df_gower$`Courthaus Social` < .08)
-names(sim_df_jaccard)[23]
-names(sim_df_jaccard)[65]
-names(sim_df_jaccard)[90]
 
 #write out jacc
-put <- here('data', 'acpd', 'Similarity_Matrix', 'raw_similarity_scores.csv')
+put <- here::here('data', 'acpd', 'Similarity_Matrix', 'raw_similarity_scores_ari.csv')
 write.csv(sim_df_jaccard, put)
 ```
 
