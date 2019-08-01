@@ -1,0 +1,163 @@
+---
+title: "Analysis"
+author: "José Bayoán Santiago Calderón"
+date: "2019-07-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Loading the data
+
+```{r}
+pacman::p_load(maditr, lubridate, here, tidyverse, rio, janitor)
+```
+
+```{r}
+ari_restaurants <- here("data", "acpd", "original", "ARI Nightlife Detail Logs", "ARI Restaurant List.xlsx") %>%
+  import(setclass = "data.table",
+         col_types = c("text", "skip", "skip", "skip", "skip", "skip", "text",
+                       "date", "skip", "skip", "skip", "skip", "skip", "skip",
+                       "skip", "skip", "skip", "skip", "skip", "skip",
+                       "skip", "skip", "skip", "skip", "skip", "skip",
+                       "skip", "skip")) %>%
+  clean_names() %>%
+  dt_filter(!is.na(x = ari_accreditation_date)) %>%
+  dt_mutate(risk = ordered(x = risk, levels = c("Low", "Med", "High")),
+            restaurant = recode(.x = restaurant,
+                                "Los Tios" = "Los Tios Grill",
+                                "BA BA" = "Baba",
+                                "Buena Vida" = "Buena Vida Clarendon",
+                                "Buena Vida Social Club" = "Buena Vida Clarendon",
+                                "Brackett Room" = "Bracket Room",
+                                "Freddies Beach Bar" = "Freddie’s Beach Bar & Restaurant",
+                                "Fredrico Ristorante Italiano" = "Federico Ristorante Italiano",
+                                "Irelands Four Courts" = "Ireland’s Four Courts",
+                                "Mexicali Blues Restaurant" = "Mexicali Blues",
+                                "O'Sullivans" = "O’Sullivan’s Irish Pub",
+                                "Punch Bowl Social" = "Punch Bowl Social Arlington",
+                                "Rhodeside" = "Rhodeside Grill",
+                                "Samuel Beckett's Irish Gastro Pub" = "Samuel Beckett’s Irish Gastro Pub",
+                                "The Celtic House" = "The Celtic House Irish Pub & Restaurant",
+                                "The G.O.A.T." =  "The G.O.A.T",
+                                "The Spirits of 76" = "Spirits of ‘76",
+                                "TTT" = "TTT Mexican Diner",
+                                "Whitlows on Wilson" = "Whitlow's On Wilson",
+                                "William Jeffreys Tavern" = "William Jeffrey’s Tavern",
+                                "Wilson Hardware" = "Wilson Hardware Kitchen & Bar")) %>%
+  dt_arrange(risk, restaurant) %>%
+  unique()
+
+sim <- fread(input = here("data", "acpd", "Similarity_Matrix", "raw_similarity_scores.csv")) %>%
+  dt_select(-V1) %>%
+  clean_names() %>%
+  dt_select(!str_detect(string = names(x = .), pattern = "_2$")) %>%
+  group_by(restaurant) %>%
+  slice(1L) %>%
+  unique()
+
+ari_restaurants <- ari_restaurants %>%
+  dt_filter(restaurant %in% sim$restaurant)
+
+in_data <- map_lgl(.x = sim$restaurant,
+                   .f = function(restaurant) restaurant %in% ari_restaurants$restaurant) %>%
+  which()
+
+sim <- sim %>%
+  dt_filter(in_data) %>%
+  dt_select(c(in_data, ncol(x = .))) %>%
+  setNames(nm = c(.$restaurant, "restaurant"))
+
+find_pair <- function(x) {
+  idx <- grep(x = ari_restaurants$restaurant, pattern = x)
+  risk_0 <- ari_restaurants$risk[idx]
+  ari_date_0 <- ari_restaurants$ari_accreditation_date[idx]
+  candidates <- ari_restaurants %>%
+    filter(risk %in% risk_0) %>%
+    dt_filter(ari_accreditation_date > ari_date_0)
+  if (nrow(x = candidates) == 0L) {
+    output <- data.table()
+  } else if (nrow(x = candidates) == 1L) {
+    y <- candidates$restaurant[1]
+    idx <- grep(x = ari_restaurants$restaurant, pattern = y)
+    ari_date_1 <- ari_restaurants$ari_accreditation_date[idx]
+    output <- data.table(x = x, y = y, start_date = ari_date_0, end_date = ari_date_1)
+  } else {
+    # Due to some weird stuff in the distance matrix
+    cols_idx <- grep(x = sim$restaurant, pattern = x)[1L]
+    idx <- sim %>%
+      filter(str_detect(string = restaurant,
+                        pattern = x)) %>%
+      head(n = 1L) %>%
+      dt_select(candidates$restaurant) %>%
+      order() %>%
+      getElement(name = 1L)
+    ari_date_1 <- ari_restaurants$ari_accreditation_date[idx]
+    output <- data.table(x = x, y = ari_restaurants$restaurant[idx],
+                         start_date = ari_date_0, end_date = ari_date_1)
+  }
+  output
+}
+
+for (i in 1:length(ari_restaurants$restaurant)) {
+  print(i)
+  find_pair(ari_restaurants$restaurant[i])
+}
+
+codebook <-  here("data", "acpd", "original", "ARI Nightlife Detail Logs", "Restaurant List & Acronyms.xlsx") %>%
+  import(setclass = "data.table") %>%
+  remove_empty(which = "rows") %>%
+  clean_names() %>%
+  setNames(nm = c("restaurant", "id")) %>%
+  dt_mutate(restaurant = recode(.x = restaurant, "BABA" = "BA BA"))
+
+chk <- map_df(.x = ari_restaurants$restaurant,
+              .f = find_pair) %>%
+  mutate(period = end_date - start_date) %>%
+  filter(abs(period) >= 28) %>%
+  dt_mutate(x = mapvalues(x, from = codebook$restaurant,
+                          to = codebook$id,
+                          warn_missing = FALSE)) %>%
+  dt_mutate(x = recode(x,
+                       "Lebanese Taverna" = "LT",
+                       "Courthaus Social" = "CS",
+                       "Spirits of ‘76" = "76",
+                       "O’Sullivan’s Irish Pub" = "OS",
+                       "Punch Bowl Social Arlington" = "PBS",
+                       "The G.O.A.T" = "GT",
+                       "Whitlow's On Wilson" = "WT",
+                       "Wilson Hardware Kitchen & Bar" = "WH",
+                       "Ambar" = "AMBAR",
+                       "Bracket Room" = "BR",
+                       "BA BA" = "BABA"
+                       ),
+            y = recode(y,
+                       "Lebanese Taverna" = "LT",
+                       "Courthaus Social" = "CS",
+                       "Spirits of ‘76" = "76",
+                       "O’Sullivan’s Irish Pub" = "OS",
+                       "Punch Bowl Social Arlington" = "PBS",
+                       "The G.O.A.T" = "GT",
+                       "Whitlow's On Wilson" = "WT",
+                       "Wilson Hardware Kitchen & Bar" = "WH",
+                       "Ambar" = "AMBAR",
+                       "Bracket Room" = "BR",
+                       "BA BA" = "BABA"
+                       ))
+selected <- with(chk, unique(c(x, y)))
+
+zz <- data.table(restaurant = selected)
+
+dt <- fread(input = here::here("data", "acpd", "Clarendon_details", "clarendon_clean_01.csv")) %>%
+  dt_select(-V1) %>%
+  setnames(old = "Establishment", new = "restaurant")
+  
+z <- unique(dt$restaurant)
+setdiff(selected, z)
+chk2 = merge(x = zz, y = dt, by = "restaurant")
+
+good_ones <- unique(chk2$restaurant)
+
+```

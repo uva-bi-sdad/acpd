@@ -38,6 +38,6 @@ clarendon_clean <- test2%>%
   
   summarize(num_cfs = sum(Num_cfs), num_arrests = sum(num_arrests))
 
-write.csv(clarendon_clean, 'data/acpd/Clarendon_details/clarendon_clean_01.csv')
+fwrite(clarendon_clean, 'data/acpd/Clarendon_details/clarendon_clean_01.csv')
 ```
 
