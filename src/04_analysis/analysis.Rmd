@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Loading the data
 
-```{r}x
+```{r}
 pacman::p_load(maditr, lubridate, here, tidyverse, rio, janitor, plyr)
 ```
 
@@ -36,7 +36,7 @@ ari_names <- function(rest_name) {
                         pattern = "(?i)(don tito|DT)")) {
     "DT"
   } else if (str_detect(string = rest_name,
-                        pattern = "(?i)(GOAT|G\\.O\\.A\\.T\\.|^GT$)")) {
+                        pattern = "(?i)(GOAT|G\\.O\\.A\\.T\\.?|^GT$)")) {
     "GT"
   } else if (str_detect(string = rest_name,
                         pattern = "(?i)(freddie)")) {
@@ -67,7 +67,7 @@ ari_names <- function(rest_name) {
     "The Celtic House Irish Pub & Restaurant"
   } else if (str_detect(string = rest_name,
                         pattern = "(?i)(spirits of|spirit of|76)")) {
-    "76"
+    "x76"
   } else if (str_detect(string = rest_name,
                         pattern = "(?i)(ttt|mexican diner)")) {
     "TTT"
@@ -98,17 +98,28 @@ ari_restaurants <- here::here("data", "acpd", "original", "ARI Nightlife Detail 
   dt_filter(!is.na(x = ari_accreditation_date) &
               address != "1101 S Joyce St") %>%
   dt_mutate(risk = ordered(x = risk, levels = c("Low", "Med", "High")),
-            restaurant = map_chr(.x = restaurant, .f = ari_names)) %>%
+            restaurant = map_chr(.x = restaurant, .f = ari_names) %>%
+              make_clean_names() %>%
+              str_remove_all(pattern = "_2$")) %>%
   dt_arrange(risk, restaurant) %>%
   unique()
+  
 
-sim <- fread(input = here::here("data", "acpd", "Similarity_Matrix", "raw_similarity_scores.csv")) %>%
-  dt_select(-V1) %>%
+fwrite(x = ari_restaurants,
+       file = here::here("data", "acpd", "working","ari_restaurants.tsv"),
+       sep = "\t")
+
+sim <- fread(input = here::here("data", "acpd", "Similarity_Matrix", "raw_similarity_scores_ari.csv")) %>%
   clean_names() %>%
   dt_select(!str_detect(string = names(x = .), pattern = "_2$")) %>%
   group_by(restaurant) %>%
   slice(1L) %>%
-  unique()
+  unique() %>%
+  dt_mutate(restaurant = map_chr(.x = restaurant, .f = ari_names) %>%
+              make_clean_names()) %>%
+  setcolorder(neworder = c(sort(setdiff(x = names(x = .),
+                                        y = "restaurant")), "restaurant")) %>%
+  dt_arrange(restaurant)
 # setdiff(ari_restaurants$restaurant, sim$restaurant)
 ari_restaurants <- ari_restaurants %>%
   dt_filter(restaurant %in% sim$restaurant)
@@ -122,13 +133,14 @@ sim <- sim %>%
   dt_select(c(in_data, ncol(x = .))) %>%
   setNames(nm = c(.$restaurant, "restaurant"))
 
+
 find_pair <- function(x) {
-  idx <- grep(x = ari_restaurants$restaurant, pattern = x)
+  idx <- which(ari_restaurants$restaurant == x)
   risk_0 <- ari_restaurants$risk[idx]
   ari_date_0 <- ari_restaurants$ari_accreditation_date[idx]
   candidates <- ari_restaurants %>%
-    filter(risk %in% risk_0) %>%
-    dt_filter(ari_accreditation_date > ari_date_0)
+    # filter(risk %in% risk_0) %>%
+    dt_filter((ari_accreditation_date - ari_date_0) >= 30L)
   if (nrow(x = candidates) == 0L) {
     output <- data.table()
   } else if (nrow(x = candidates) == 1L) {
@@ -138,7 +150,7 @@ find_pair <- function(x) {
     output <- data.table(x = x, y = y, start_date = ari_date_0, end_date = ari_date_1)
   } else {
     # Due to some weird stuff in the distance matrix
-    cols_idx <- grep(x = sim$restaurant, pattern = x)[1L]
+    cols_idx <- grep(x = sim$restaurant, pattern = x)
     idx <- sim %>%
       filter(str_detect(string = restaurant,
                         pattern = x)) %>%
@@ -158,14 +170,70 @@ for (i in 1:length(ari_restaurants$restaurant)) {
   find_pair(ari_restaurants$restaurant[i])
 }
 
-codebook <-  here("data", "acpd", "original", "ARI Nightlife Detail Logs", "Restaurant List & Acronyms.xlsx") %>%
+
+
+codebook <-  here::here("data", "acpd", "original", "ARI Nightlife Detail Logs", "Restaurant List & Acronyms.xlsx") %>%
   import(setclass = "data.table") %>%
   remove_empty(which = "rows") %>%
   clean_names() %>%
-  setNames(nm = c("restaurant", "id")) %>%
-  dt_mutate(restaurant = recode(.x = restaurant, "BABA" = "BA BA"))
+  setNames(nm = c("restaurant", "id"))
 setdiff(ari_restaurants$restaurant, chk$x)
 setdiff(ari_restaurants$restaurant, chk$y)
+
+chk <- map_df(.x = ari_restaurants$restaurant,
+              .f = find_pair)
+names(ari_restaurants)
+names(sim)
+
+dt <- fread(input = here::here("data", "acpd", "Clarendon_details", "clarendon_clean_03.csv")) %>%
+  clean_names() %>%
+  dt_select(-c(x1, index)) %>%
+  setnames(old = "establishment", new = "restaurant") %>%
+  dt_mutate(date = as_date(date),
+            restaurant = map_chr(.x = restaurant, .f = ari_names) %>%
+              make_clean_names() %>%
+              str_remove_all("_\\d+$")) %>%
+  dt_filter(restaurant %in% ari_restaurants$restaurant)
+  # dt_filter(restaurant %in% union(chk$x, chk$y))
+
+arg <- unique(dt$restaurant)
+
+unique(dt$restaurant)
+
+
+magic <- function(idx) {
+  x <- chk$x[idx]
+  y <- chk$y[idx]
+  d0 <- chk$start_date[idx]
+  d1 <- chk$end_date[idx]
+  per_of_int <- interval(start = d0, end = d1)
+  subtbl <- dt %>%
+    data.table() %>%
+    dt_filter((restaurant %in% c(x, y)) &
+                date %within% per_of_int)
+  subtbl[, count := sum(num_cfs), by = c("restaurant")]
+  subtbl <- subtbl %>%
+    dt_filter(main_category == "Identification") %>%
+    dt_select(restaurant, count) %>%
+    unique()
+  x <- subtbl$count[subtbl$restaurant == x]
+  y <- subtbl$count[subtbl$restaurant == y]
+  if (is_empty(x = x)) {
+    x <- 0L
+  }
+  if (is_empty(x = y)) {
+    y <- 0L
+  }
+  data.table(x = if_else(condition = is_empty(x = x), true = 0L, false = x),
+             y = if_else(condition = is_empty(x = y), true = 0L, false = y))
+}
+
+x <- map_df(.x = 1:nrow(chk), magic)
+
+sort(union(chk$x,chk$y))
+with(x,
+     t.test(x = x, y = y, paired = TRUE, conf.level = 0.9))
+?t.test
 
 chk <- map_df(.x = ari_restaurants$restaurant,
               .f = find_pair) %>%
@@ -204,9 +272,14 @@ selected <- with(chk, unique(c(x, y)))
 
 zz <- data.table(restaurant = selected)
 
-dt <- fread(input = here::here("data", "acpd", "Clarendon_details", "clarendon_clean_01.csv")) %>%
-  dt_select(-V1) %>%
-  setnames(old = "Establishment", new = "restaurant")
+
+
+magic <- function()
+
+union(chk$x, chk$y) %>%
+  sort()
+
+library(snakecase)
 
 z <- unique(dt$restaurant)
 setdiff(selected, z)
