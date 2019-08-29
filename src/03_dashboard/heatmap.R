@@ -3,17 +3,11 @@
 
 if (!file.exists("crime_hours.RDS")) {
   get_crime = function() {
-    conn <- dbConnect(drv = PostgreSQL(),
-                      dbname = "acpd",
-                      host = "postgis_1",
-                      port = 5432L,
-                      user = Sys.getenv("db_userid"),
-                      password = Sys.getenv("db_pwd"))
-    output = dbReadTable(conn = conn,
-                         name = c('incidents_filtered')) %>%
-      data.table()
-    on.exit(dbDisconnect(conn = conn))
-    return(value = output)
+    conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
+    on.exit(dbDisconnect(conn))
+    data.table::setDT(
+      dbReadTable(conn = conn,
+                  name = c('incidents_filtered')))
   }
 
   acpd_data <- get_crime() %>%
@@ -39,8 +33,8 @@ make_heatmap <- function(crime_category, crime_hours) {
   ) %>%
     plotly::layout(
       title = paste(crime_category),
-      xaxis = list(type = "category"),
-      yaxis = list(type = "numeric", dtick = 1))
+      xaxis = list(title = "Year", type = "category"),
+      yaxis = list(title = "Hour of Day", type = "numeric", dtick = 1))
 
   heatmap
 }

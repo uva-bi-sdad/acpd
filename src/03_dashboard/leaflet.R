@@ -1,18 +1,4 @@
-get_db_conn <- function() {
-  conn <- dbConnect(
-    drv = PostgreSQL(),
-    dbname = "acpd",
-    host = "postgis_1",
-    port = 5432L,
-    user = Sys.getenv("db_userid"),
-    password = Sys.getenv("db_pwd")
-  )
-  conn
-}
-
 make_crime_map <- function(crime_type = "Drunkenness") {
-  #setwd('~/acpd/src/03_dashboard')
-  #browser()
   mapname <- paste0(make.names(crime_type), "_map")
   mapfile <- paste0(make.names(mapname), ".RDS")
 
@@ -31,7 +17,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
 
     # Load census_blocks
     if (!file.exists("census_blocks.RDS")) {
-      conn <- get_db_conn()
+      conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
       census_blocks <-
         st_read(dsn = conn, layer = "arlington_census_blocks")
       dbDisconnect(conn)
@@ -41,7 +27,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
 
     # Load or create map_pnts_sf (police_incidents)
     if (!file.exists("police_incidents.RDS")) {
-      conn <- get_db_conn()
+      conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
       police_incidents <- dbReadTable(conn = conn,
                                       name = "incidents_filtered") %>%
         dt_select(
@@ -100,7 +86,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
 
     # load or create restauants
     if (!file.exists("restaurants.RDS")) {
-      conn <- get_db_conn()
+      conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
       restaurants <- dbReadTable(conn = conn,
                                  name = 'vabc_arlington_restaurants') %>%
         setDT() %>%
@@ -129,7 +115,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     # Load or create map_pnts_2_sf (restaurant violations)
     # bring in violations data and filter to violations in past month
     if (!file.exists("map_pnts_2_sf.RDS")) {
-      conn <- get_db_conn()
+      conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
       violations <- dbReadTable(conn = conn,
                                 name = 'abc_violations') %>%
         data.table()
@@ -190,7 +176,7 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     # color palette function
     pal <- leaflet::colorBin(
       palette = "viridis",
-      bins = c(0, 2, 4, 6, 8, 10, 12, 14, 18),
+      bins = c(1, 2, 4, 6, 8, 10, 12, 14, 18),
       reverse = TRUE
     )
     pal2 <- leaflet::colorFactor(c("gray17", "darkblue"),
@@ -200,17 +186,19 @@ make_crime_map <- function(crime_type = "Drunkenness") {
     # Create map
     print("Building Map...")
     m <-
-      leaflet::leaflet(options = leafletOptions(preferCanvas = TRUE, zoomControl = FALSE))
+      leaflet::leaflet(options = leafletOptions(zoomControl = FALSE))
     m <- htmlwidgets::onRender(m, "function(el, x) {
                                       L.control.zoom({ position: 'bottomleft' }).addTo(this)
                                   }")
 
     m <- leaflet::setView(m, -77.09500, 38.88700, 17)
     m <- leaflet::addTiles(m)
+    #m <- addProviderTiles(m, providers$Stamen.Toner)
     m <- leaflet::addMapPane(m, "base_layers", zIndex = 410)
     m <- leaflet::addMapPane(m, "boundaries", zIndex = 420)
     m <- leaflet::addMapPane(m, "under_places", zIndex = 405)
     m <- leaflet::addMapPane(m, "places", zIndex = 440)
+    #m <- addMapboxGL(m, style = "mapbox://styles/mapbox/streets-v9")
 
     # add polygon data layers
     print("Adding Polygon Layers...")
