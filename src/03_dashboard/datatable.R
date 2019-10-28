@@ -26,6 +26,7 @@ make_datatable <- function(crime_category, crimes_data) {
     DT::datatable(
       c,
       extensions = c('Buttons', 'FixedColumns'),
+      filter = "top",
       options = list(
         dom = 'Bfrtip',
         buttons = c('copy', 'csv', 'excel', 'print'),
