@@ -26,78 +26,81 @@ make_crime_map <- function(crime_type = "Drunkenness") {
       census_blocks <- readRDS("census_blocks.RDS")
 
     # Load or create map_pnts_sf (police_incidents)
-    if (!file.exists("police_incidents.RDS")) {
-      conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
-      police_incidents <- dbReadTable(conn = conn,
-                                      name = "incidents_filtered") %>%
-        dt_select(
-          id,
-          description,
-          start,
-          crime_category,
-          nearby,
-          day,
-          hour,
-          nightlife,
-          longitude,
-          latitude
-        ) %>%
-        dt_mutate(crime_year = year(x = start)) %>%
-        st_as_sf(coords = c("longitude", "latitude")) %>%
-        st_set_crs(value = st_crs(x = census_blocks))
-      dbDisconnect(conn)
-      map_pnts_sf <- police_incidents
-      saveRDS(police_incidents, "map_pnts_sf.RDS")
-    } else map_pnts_sf <- readRDS("map_pnts_sf.RDS")
+    # if (!file.exists("map_pnts_sf.RDS")) {
+    #   conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
+    #   police_incidents <- dbReadTable(conn = conn,
+    #                                   name = "incidents_filtered") %>%
+    #     dt_select(
+    #       id,
+    #       description,
+    #       start,
+    #       crime_category,
+    #       nearby,
+    #       day,
+    #       hour,
+    #       nightlife,
+    #       longitude,
+    #       latitude
+    #     ) %>%
+    #     dt_mutate(crime_year = year(x = start)) %>%
+    #     st_as_sf(coords = c("longitude", "latitude")) %>%
+    #     st_set_crs(value = st_crs(x = census_blocks))
+    #   dbDisconnect(conn)
+    #   map_pnts_sf <- police_incidents
+    #   saveRDS(police_incidents, "map_pnts_sf.RDS")
+    # } else
+      map_pnts_sf <- readRDS("map_pnts_sf.RDS")
 
     # Load or create map_polys_sf
-    if (!file.exists("map_polys_sf.RDS")) {
-      skeleton <-
-        expand.grid(na.omit(object = unique(x = census_blocks$fullblockid)),
-                    na.omit(object = unique(x = police_incidents$crime_year)),
-                    na.omit(object = unique(x = police_incidents$crime_category))) %>%
-        data.table() %>%
-        setNames(nm = c("geoid10", "crime_year", "crime_category"))
-      st_join(x = census_blocks,
-              y = police_incidents) %>%
-        dt_select(fullblockid, crime_year, crime_category, id) %>%
-        setnames(old = "fullblockid", new = "geoid10") %>%
-        merge(y = skeleton, all.y = TRUE) %>%
-        dt_mutate(count := sum(x = !is.na(x = id)),
-                  by = c("geoid10", "crime_year", "crime_category")) %>%
-        dt_select("geoid10", "crime_year", "crime_category", "count") %>%
-        unique() %>%
-        dcast(geoid10 + crime_year ~ crime_category, value.var = "count") %>%
-        merge(
-          y = census_blocks %>%
-            dt_select(fullblockid, geometry) %>%
-            setnames(old = "fullblockid", new = "geoid10"),
-          by = "geoid10"
-        ) %>%
-        dt_arrange(geoid10, crime_year) %>%
-        st_as_sf() -> tmp
+    # if (!file.exists("map_polys_sf.RDS")) {
+    #   skeleton <-
+    #     expand.grid(na.omit(object = unique(x = census_blocks$fullblockid)),
+    #                 na.omit(object = unique(x = map_pnts_sf$crime_year)),
+    #                 na.omit(object = unique(x = map_pnts_sf$crime_category))) %>%
+    #     data.table() %>%
+    #     setNames(nm = c("geoid10", "crime_year", "crime_category"))
+    #   st_join(x = census_blocks,
+    #           y = map_pnts_sf) %>%
+    #     dt_select(fullblockid, crime_year, crime_category, id) %>%
+    #     setnames(old = "fullblockid", new = "geoid10") %>%
+    #     merge(y = skeleton, all.y = TRUE) %>%
+    #     dt_mutate(count := sum(x = !is.na(x = id)),
+    #               by = c("geoid10", "crime_year", "crime_category")) %>%
+    #     dt_select("geoid10", "crime_year", "crime_category", "count") %>%
+    #     unique() %>%
+    #     dcast(geoid10 + crime_year ~ crime_category, value.var = "count") %>%
+    #     merge(
+    #       y = census_blocks %>%
+    #         dt_select(fullblockid, geometry) %>%
+    #         setnames(old = "fullblockid", new = "geoid10"),
+    #       by = "geoid10"
+    #     ) %>%
+    #     dt_arrange(geoid10, crime_year) %>%
+    #     st_as_sf() -> tmp
+    #
+    #   map_polys_sf <- rmapshaper::ms_simplify(input = as(tmp, 'Spatial'), keep = .001) %>%
+    #     st_as_sf()
+    #
+    #   saveRDS(map_polys_sf, "map_polys_sf.RDS")
+    # } else
 
-      map_polys_sf <- rmapshaper::ms_simplify(input = as(tmp, 'Spatial'), keep = .001) %>%
-        st_as_sf()
-
-      saveRDS(map_polys_sf, "map_polys_sf.RDS")
-    } else
       map_polys_sf <- readRDS("map_polys_sf.RDS")
 
     # load or create restauants
-    if (!file.exists("restaurants.RDS")) {
-      conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
-      restaurants <- dbReadTable(conn = conn,
-                                 name = 'vabc_arlington_restaurants') %>%
-        setDT() %>%
-        dt_mutate(priv = str_detect(string = priv_desc,
-                                    pattern = "(?i)(wine|beer)")) %>%
-        dt_filter(priv) %>%
-        dt_filter(lic_status_status_desc %in% "Active") %>%
-        st_as_sf(coords = c("x", "y"))
-      dbDisconnect(conn)
-      saveRDS(restaurants, "restaurants.RDS")
-    } else
+    # if (!file.exists("restaurants.RDS")) {
+    #   conn <- get_db_conn(db_name = "acpd", db_user = "acpd_user", db_pass = "acpd")
+    #   restaurants <- dbReadTable(conn = conn,
+    #                              name = 'vabc_arlington_restaurants') %>%
+    #     setDT() %>%
+    #     dt_mutate(priv = str_detect(string = priv_desc,
+    #                                 pattern = "(?i)(wine|beer)")) %>%
+    #     dt_filter(priv) %>%
+    #     dt_filter(lic_status_status_desc %in% "Active") %>%
+    #     st_as_sf(coords = c("x", "y"))
+    #   dbDisconnect(conn)
+    #   saveRDS(restaurants, "restaurants.RDS")
+    # } else
+
       restaurants <- readRDS("restaurants.RDS")
 
     # Create pnts_2_sf (restaurant points)
