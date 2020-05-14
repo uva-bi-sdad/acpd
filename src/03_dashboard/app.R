@@ -1,11 +1,24 @@
 #========Interactive Dashboard======================
 
-if (!("pacman" %in% installed.packages()[,1])) {
-  install.packages(pkgs = "pacman")
-}
-pacman::p_load(RPostgreSQL, tidyverse, maditr, sf, geosphere,
-               semantic.dashboard, shiny.semantic,
-               leaflet, plotly, DT, here, leaflet.mapboxgl)
+# if (!("pacman" %in% installed.packages()[,1])) {
+#   install.packages(pkgs = "pacman")
+# }
+# pacman::p_load(RPostgreSQL, tidyverse, maditr, sf, geosphere,
+#                semantic.dashboard, shiny.semantic,
+#                leaflet, plotly, DT, here, leaflet.mapboxgl)
+
+library(RPostgreSQL)
+library(tidyverse)
+library(maditr)
+library(sf)
+library(geosphere)
+library(semantic.dashboard)
+library(leaflet)
+library(plotly)
+library(DT)
+library(here)
+library(leaflet.providers)
+library(shiny.semantic)
 
 ui <- dashboardPage(
   dashboardHeader(color = "blue", title = "Alcohol-Related Crime", inverted = TRUE),
