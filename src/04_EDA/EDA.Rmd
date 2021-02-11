@@ -1,0 +1,195 @@
+---
+title: "EDA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(readxl)
+library(readr)
+library(dplyr)
+library(magrittr)
+library(reshape2)
+library(lubridate)
+library(ggplot2)
+library(plyr)
+```
+
+Cleaning Restaurant Names
+
+NSS <- NS
+MB (Blues) <- MB
+Bracket <- BR
+Bronx (BX?) <- BP
+
+```{r}
+
+
+nightlife_data <- read_csv("~/acpd/data/acpd/Clarendon_details/clarendon_clean_02.csv")
+
+#get list of restaurant acronymns
+restaurant_acronyms <- read_excel("~/acpd/data/acpd/original/ARI Nightlife Detail Logs/Restaurant List & Acronyms.xlsx")
+
+#different abbreviations used for Hunan One
+hunan_names <- c("H1", "Hun", "HUN", "HUNAN", "Hunan One", "HU")
+#different abbreviations used for 7-11
+seven11_names <- c("7-11", "711", "Seven 11", "Seven-11", "Seven11")
+
+#clean name discrepencies
+nightlife_clean <- nightlife_data %>%
+  mutate(establishment = ifelse(establishment == "Darna", "DARNA",
+                                ifelse(establishment %in% hunan_names, "HUN",
+                                       ifelse(establishment %in% seven11_names, "7-11",
+                                              ifelse(establishment == "NSS", "NS",
+                                                     ifelse(establishment == "MB (Blues)", "MB", 
+                                                            ifelse(establishment == "Bracket", "BR",
+                                                                   ifelse(establishment == "Bronx", "BP",
+                                                                          ifelse(establishment == "A TOWN", "ATOWN",
+                                                                          toupper(establishment))))))))))
+
+#get list of ARI accredited restaurants
+ari_restaurants <- read_csv("~/acpd/data/acpd/ari_restaurants.csv")
+
+#add accredidation date
+ari_restaurants_2 <- ari_restaurants %>%
+  left_join(restaurant_acronyms, by = c("restaurant" = "Restaurant List & Acronyms"))%>%
+  mutate(ari_accredit = ifelse(restaurant == "Ba Ba" | restaurant == "Buena Vida", as.Date("2019-06-29"),
+                               ifelse(restaurant == "Los Tios", as.Date("2019-06-06"),
+                                      ifelse(restaurant == "Medium Rare", as.Date("2019-06-27"), as.Date(ari_accredit)))),
+         X__1 = ifelse(restaurant == "Medium Rare", "MR",
+                       ifelse(restaurant == "Samuel Beckett's Irish Gastro Pub", "SB", X__1)))%>%
+  select(X__1, ari_accredit)
+ari_restaurants_2$ari_accredit <- as.Date(ari_restaurants_2$ari_accredit, origin="1970-01-01")
+clarendon_clean_03 <- nightlife_clean %>%
+  left_join(ari_restaurants_2, by = c("establishment" = "X__1"))%>%
+  mutate(accreditation = ifelse(date < ari_accredit | is.na(ari_accredit), 0, 1))
+
+write_csv(clarendon_clean_03, "~/acpd/data/acpd/Clarendon_details/clarendon_clean_03.csv")
+```
+
+```{r}
+#graph for weekly total of alcohol-related incidents for accredited/non-accredited restaurants Agu 2018-July 2019
+
+#change accrediation status to factor
+clarendon_clean_03$accreditation <- as.factor(clarendon_clean_03$accreditation)
+
+#get incident data from August 2018 to July 2019
+crime_2018_2019 <- clarendon_clean_03 %>%
+  dplyr::filter(year(date) == 2018 & week(date)>=33 | year(date) == 2019, main_category!="Other") %>%
+  dplyr::mutate(week = ifelse(year(date)==2019, week(date)+53, week(date)))%>%
+  dplyr::group_by(year = factor(year(date)), accreditation, week)%>%
+  dplyr::summarise(num_incidents = n(), num_arrests = sum(num_arrests))%>%
+  dplyr::mutate(date = lubridate::ymd("2018-01-01") + lubridate::weeks(week - 1))
+
+#create plot
+ggplot(crime_2018_2019,
+       aes(x = date, y = num_incidents)) +
+  geom_line(aes(color = accreditation), size = 1) + 
+  geom_vline(xintercept=as.Date("2018-12-25"), linetype = "dotted", color = "black")+
+  geom_vline(xintercept=as.Date("2019-03-17"), linetype = "dotted", color = "black")+
+  scale_color_viridis_d(name= "",
+                        labels = c("Non-accredited restaurants", "ARI accredited restaurants"))+
+  labs(title = "Weekly total of alcohol-related incidents for accredited/non-accredited restaurants \n August 2018 -- July 2019", y = "Number of alcohol-related incidents", x = "Date")+
+  annotate("text", x=as.Date("2018-12-25"), y=16, hjust = .5, 
+           label="Christmas", size=3)+
+  annotate("text", x=as.Date("2019-03-17"), y=16, hjust = .5, 
+           label="St. Patrick's Day", size=3)+
+  theme_minimal()+
+  theme(legend.position="bottom", plot.title = element_text(hjust = 0.5))
+  
+```
+
+
+```{r}
+#visualization of Total Alcohol-Related Incidents at ARI Accredited Restaurants 3 Months Before and After Accreditation
+
+#extract data for accredited restaurants
+accredited_restaurants <- clarendon_clean_03 %>%
+  dplyr::filter(accreditation == 1, main_category != "Other")%>%
+  dplyr::group_by(establishment)%>%
+  dplyr::summarize(incidents=n())
+ari_clarendon <- accredited_restaurants$establishment
+
+#get number of incidents for accredited restaurants 3 months before and after accreditation
+accredited_restaurants_incidents <- clarendon_clean_03 %>%
+  dplyr::filter(establishment %in% ari_clarendon, date >= ari_accredit - months(3) & date <= ari_accredit + months(3))%>%
+  dplyr::group_by(establishment, accreditation, ari_accredit)%>%
+  dplyr::summarize(num_incidents = n())%>%
+  dcast(establishment + ari_accredit ~ accreditation, value.var = "num_incidents")%>%
+  dplyr::mutate(`0` = ifelse(is.na(`0`), 0, `0`), `1` = ifelse(is.na(`1`), 0, `1`))
+colnames(accredited_restaurants_incidents) <- c("establishment","accreditation_date", "before_accreditation", "after_accreditation")
+
+
+# Create plot
+ggplot(accredited_restaurants_incidents) + geom_segment(aes(x=1, xend=2, y=`before_accreditation`, yend=`after_accreditation`, col = establishment), size=.75, show.legend=F) + 
+                  geom_vline(xintercept=1, linetype="dashed", size=.1) + 
+                  geom_vline(xintercept=2, linetype="dashed", size=.1) +
+                  scale_color_viridis_d() + 
+                  labs(x="", y="Number of Incidents") +  # Axis labels
+                  xlim(.5, 2.5) + ylim(0,(1.1*(max(accredited_restaurants_incidents$`before_accreditation`, accredited_restaurants_incidents$`after_accreditation`)))) + # X and Y axis limits
+  annotate("text", x=1, y=accredited_restaurants_incidents$`before_accreditation`[1], hjust = 1.1, 
+           label="Bar Bao", size=3.5)+
+  annotate("text", x=1, y=accredited_restaurants_incidents$`before_accreditation`[2], hjust = 1.1, 
+           label="Don Tito", size=3.5)+
+  annotate("text", x=1, y=accredited_restaurants_incidents$`before_accreditation`[3], hjust = 1.1,
+           label="Liberty Tavern", size=3.5)+
+  annotate("text", x=2, y=accredited_restaurants_incidents$`after_accreditation`[4], hjust = -0.1,
+           label="Pamplona", size=3.5)+
+  annotate("text", x=1, y=accredited_restaurants_incidents$`before_accreditation`[5], hjust = 1.1,
+           label="Wilson Hardware", size=3.5)+
+  annotate("text", x=1, y=1.1*(max(accredited_restaurants_incidents$`before_accreditation`, accredited_restaurants_incidents$`after_accreditation`)), hjust = 1.1,
+           label="Before", size=5)+
+  annotate("text", x=2, y=1.1*(max(accredited_restaurants_incidents$`before_accreditation`, accredited_restaurants_incidents$`after_accreditation`)), hjust = -0.1,
+           label="After", size=5)+
+  labs(title = "Total Alcohol-Related Incidents at ARI Accredited Restaurants\n3 Months Before and After Accreditation") +
+  theme(panel.background = element_blank(), 
+           panel.grid = element_blank(),
+           axis.ticks = element_blank(),
+           axis.text.x = element_blank(),
+           panel.border = element_blank(),
+           plot.margin = unit(c(1,2,1,2), "cm"))+
+  theme(legend.position="bottom", plot.title = element_text(hjust = 0.5))
+
+```
+```{r}
+#dates around holidays for 2016-2019
+#possible dates around Christmas weekend 2016-2018
+xmas <- c(as.Date("2016-12-23"), as.Date("2016-12-24"), as.Date("2017-12-22"), as.Date("2017-12-23"), as.Date("2018-12-22"), as.Date("2018-12-23"))
+#possible dates around St. Patrick's weekend 2017-2019
+stpaddys <- c(as.Date("2017-03-17"), as.Date("2017-03-18"), as.Date("2018-03-16"), as.Date("2018-03-17"), as.Date("2019-03-15"), as.Date("2019-03-16"), as.Date("2019-03-17"))
+#possible dates around Cinco de Mayo weekend 2016-2019
+cinco <- c(as.Date("2016-05-05"), as.Date("2016-05-06"), as.Date("2016-05-07"), as.Date("2017-05-05"), as.Date("2017-05-06"), as.Date("2018-05-04"), as.Date("2017-05-05"), as.Date("2019-05-03"), as.Date("2019-05-04"), as.Date("2019-05-05"))
+#possible dates around New Years weekend 2016-2018
+newyears <- c(as.Date("2016-12-30"), as.Date("2016-12-31"), as.Date("2017-12-29"), as.Date("2017-12-30"), as.Date("2017-12-31"), as.Date("2018-12-28"), as.Date("2018-12-29"), as.Date("2018-12-31"))
+#possible dates around Halloween weekend 2016-2018
+halloween <- c(as.Date("2016-10-28"), as.Date("2016-10-29"), as.Date("2016-10-30"), as.Date("2017-10-27"), as.Date("2017-10-28"), as.Date("2018-12-26"), as.Date("2018-12-27"), as.Date("2018-12-31"))
+
+
+#find proportion of different types of alcohol-related incidents for different holidays
+holidays <- clarendon_clean_03 %>%
+  filter(main_category != "Other") %>%
+  dplyr::mutate(holiday = ifelse(date %in% xmas, "Christmas",
+                          ifelse(date %in% stpaddys, "St. Patrick's Day",
+                                 ifelse(date %in% cinco, "Cinco de Mayo", 
+                                        ifelse(date %in% newyears, "New Year's Eve",
+                                               ifelse(date %in% halloween, "Halloween", "Other"))))))%>%
+  dplyr::group_by(holiday, main_category)%>%
+  dplyr::summarize(incidents =  n())%>%
+  dcast(holiday ~ main_category)%>%
+  mutate(DUI = ifelse(is.na(DUI), 0, DUI), num_incidents = Assault + `Disorderly Conduct` + DUI + Identification) %>%
+  mutate(Assault = Assault/num_incidents, `Disorderly Conduct` = `Disorderly Conduct`/num_incidents, DUI = DUI/num_incidents, `Identification Issue` = Identification/num_incidents) %>%
+  select(-c(num_incidents, Identification)) %>%
+  melt(id.vars = "holiday")
+
+#put factors in right order for graph
+holidays$variable <- factor(holidays$variable, levels = c("DUI", "Identification Issue", "Assault", "Disorderly Conduct"))
+holidays$holiday <- factor(holidays$holiday, levels = c("St. Patrick's Day", "Cinco de Mayo", "Halloween", "Christmas", "New Year's Eve", "Other"))
+
+#create visualization
+ggplot(holidays, aes(x=holiday, y=value, fill = variable)) + 
+  geom_bar(stat = "identity")+ 
+  scale_fill_viridis_d(direction = -1, name = "Type of incident")+
+  labs(x= "Holiday weekend", y = "Proportion of incidents", title = "Proportion of Alcohol-Related Incidents over Specific Holidays\nin Clarendon 2016-2019")+
+  scale_x_discrete(labels=c("St. Patrick's Day" = "St. Patrick's\nDay", "Cinco de Mayo" = "Cinco de\nMayo",
+                              "Halloween" = "Halloween", "Christmas" = "Christmas", "New Year's Eve" = "New Year's\nEve", "Other" = "All other\ndays"))+
+  theme(legend.position="bottom", plot.title = element_text(hjust = 0.5))
+```
